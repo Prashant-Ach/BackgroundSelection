@@ -1,6 +1,7 @@
 {
   "name": "texturegen",
   "version": "1.0.0",
+  "homepage": "https://prashant-ach.github.io/BackgroundSelection",
   "description": "Generate wallpapers, textures, and banners programmatically",
   "main": "src/index.js",
   "scripts": {
