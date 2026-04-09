@@ -139,6 +139,35 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 /* scrollbar */
 ::-webkit-scrollbar{width:5px}::-webkit-scrollbar-track{background:transparent}::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
 
+/* ── AI PROMPT BAR ─────────────────────────────────────────── */
+#ai-bar{position:absolute;bottom:56px;left:50%;transform:translateX(-50%);width:min(640px,calc(100% - 40px));z-index:20;pointer-events:all}
+#ai-suggestions{display:flex;gap:6px;justify-content:center;margin-bottom:8px;flex-wrap:wrap}
+.ai-chip{padding:4px 11px;border-radius:20px;background:#0d0d1acc;border:1px solid #ffffff18;color:var(--text);font-size:11px;cursor:pointer;transition:all.15s;backdrop-filter:blur(12px);white-space:nowrap;user-select:none}
+.ai-chip:hover{background:var(--accent);border-color:var(--accent);color:#fff;transform:translateY(-1px)}
+.ai-chip.cop{background:#ec489912;border-color:#ec489930;color:#ec4899}
+.ai-chip.cop:hover{background:#ec4899;border-color:#ec4899;color:#fff}
+#ai-input-row{display:flex;gap:8px;align-items:center}
+#ai-prompt{flex:1;background:#08080fdd;border:1px solid #ffffff1e;border-radius:14px;color:var(--text);padding:11px 16px 11px 42px;font-size:13px;outline:none;backdrop-filter:blur(20px);transition:border-color.2s,box-shadow.2s;font-family:inherit}
+#ai-prompt:focus{border-color:var(--accent);box-shadow:0 0 0 3px #6366f120}
+#ai-prompt::placeholder{color:var(--muted2)}
+#ai-prompt-icon{position:absolute;left:13px;top:50%;transform:translateY(-50%);font-size:14px;pointer-events:none;color:var(--accent);opacity:.8}
+#ai-prompt-wrap{position:relative;flex:1;display:flex;align-items:center}
+#ai-send{width:42px;height:42px;border-radius:12px;background:linear-gradient(135deg,var(--accent),var(--accent2));border:none;color:#fff;font-size:15px;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:all.15s;flex-shrink:0;box-shadow:0 4px 15px #6366f140}
+#ai-send:hover{opacity:.88;transform:scale(1.06) translateY(-1px)}
+#ai-send.spin{animation:ai-spin .5s linear infinite}
+@keyframes ai-spin{to{transform:rotate(360deg)}}
+#ai-status{text-align:center;font-size:11px;color:var(--muted);margin-top:6px;min-height:15px;transition:all.3s}
+.ai-thinking{color:var(--accent)!important;animation:ai-pulse 1s ease-in-out infinite}
+@keyframes ai-pulse{0%,100%{opacity:.4}50%{opacity:1}}
+#ai-result{position:absolute;top:14px;left:50%;transform:translateX(-50%);background:#08080fee;border:1px solid #6366f150;border-radius:10px;padding:5px 14px;font-size:11.5px;color:var(--accent);backdrop-filter:blur(12px);white-space:nowrap;opacity:0;transition:opacity.3s;pointer-events:none;z-index:30;display:flex;align-items:center;gap:6px}
+#ai-result.show{opacity:1}
+/* autocomplete dropdown */
+#ai-autocomplete{position:absolute;bottom:calc(100% + 8px);left:0;right:52px;background:#0e0e1a;border:1px solid var(--border2);border-radius:10px;overflow:hidden;display:none;z-index:25}
+.ai-ac-item{padding:9px 14px;font-size:12px;color:var(--muted);cursor:pointer;transition:all.12s;border-bottom:1px solid var(--border)}
+.ai-ac-item:last-child{border-bottom:none}
+.ai-ac-item:hover,.ai-ac-item.sel{background:var(--s3);color:var(--text)}
+.ai-ac-item span{color:var(--accent);margin-right:8px}
+
 /* toggle switch */
 .toggle-row{display:flex;align-items:center;justify-content:space-between;margin-bottom:6px}
 .toggle{width:34px;height:18px;background:var(--s3);border-radius:10px;border:1px solid var(--border);cursor:pointer;position:relative;transition:background.2s}
@@ -199,6 +228,34 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 <div id="canvas-area">
   <canvas id="main-canvas" width="1200" height="630"></canvas>
   <canvas id="overlay-canvas" style="position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);pointer-events:none;border-radius:12px;display:none"></canvas>
+  <!-- AI RESULT BADGE -->
+  <div id="ai-result"><span id="ai-result-icon">✦</span><span id="ai-result-text"></span></div>
+
+  <!-- AI PROMPT BAR -->
+  <div id="ai-bar">
+    <div id="ai-suggestions">
+      <span class="ai-chip" data-prompt="dark fintech dashboard subtle indigo gradient minimal noise">💼 Fintech</span>
+      <span class="ai-chip" data-prompt="minimal saas landing page clean light blue gradient">🚀 SaaS</span>
+      <span class="ai-chip" data-prompt="vibrant mobile app mesh gradient purple pink">📱 Mobile</span>
+      <span class="ai-chip" data-prompt="cyberpunk neon green dark background flow field">⚡ Cyberpunk</span>
+      <span class="ai-chip" data-prompt="elegant marketing banner warm gold radial gradient">✨ Marketing</span>
+      <span class="ai-chip cop" data-copilot="make it darker">🌑 Darker</span>
+      <span class="ai-chip cop" data-copilot="more premium">💎 Premium</span>
+      <span class="ai-chip cop" data-copilot="more subtle">🔇 Subtle</span>
+      <span class="ai-chip cop" data-copilot="add depth">🌊 Depth</span>
+    </div>
+    <div id="ai-input-row">
+      <div id="ai-prompt-wrap">
+        <span id="ai-prompt-icon">✦</span>
+        <input id="ai-prompt" type="text" autocomplete="off" spellcheck="false"
+          placeholder="Describe your background… e.g. dark fintech dashboard with purple gradient"/>
+        <div id="ai-autocomplete"></div>
+      </div>
+      <button id="ai-send" title="Generate (Enter)">➤</button>
+    </div>
+    <div id="ai-status"></div>
+  </div>
+
   <div class="canvas-toolbar">
     <button class="tb-btn" id="btn-zoomFit">⊡ Fit</button>
     <button class="tb-btn" id="btn-realtime" title="Real-time update">⚡ Live</button>
@@ -1776,11 +1833,673 @@ document.getElementById('btn-realtime').addEventListener('click',()=>{
 window.addEventListener('resize',fitCanvas)
 
 // ═══════════════════════════════════════════════════════════
-// BOOT
+// AURORA AI ENGINE  v1  — rule-based, zero API cost, <50ms
 // ═══════════════════════════════════════════════════════════
-selectGen('gradient')
-render(true)
-document.getElementById('btn-realtime').classList.add('active')
+
+const AI = {
+
+  // ── COLOR DICTIONARY ──────────────────────────────────────────
+  COLORS: {
+    purple:   { light:'#a855f7', mid:'#7c3aed', dark:'#4c1d95', base:'#1a0a3e' },
+    violet:   { light:'#c084fc', mid:'#8b5cf6', dark:'#6d28d9', base:'#1a0a3e' },
+    indigo:   { light:'#818cf8', mid:'#6366f1', dark:'#4338ca', base:'#0f0e30' },
+    blue:     { light:'#60a5fa', mid:'#3b82f6', dark:'#1d4ed8', base:'#0a1628' },
+    cyan:     { light:'#22d3ee', mid:'#06b6d4', dark:'#0e7490', base:'#061820' },
+    teal:     { light:'#2dd4bf', mid:'#14b8a6', dark:'#0f766e', base:'#041e1c' },
+    green:    { light:'#4ade80', mid:'#22c55e', dark:'#15803d', base:'#052e16' },
+    lime:     { light:'#a3e635', mid:'#84cc16', dark:'#4d7c0f', base:'#0a1200' },
+    yellow:   { light:'#fde047', mid:'#f59e0b', dark:'#b45309', base:'#1c1000' },
+    amber:    { light:'#fbbf24', mid:'#f59e0b', dark:'#d97706', base:'#1c1200' },
+    orange:   { light:'#fb923c', mid:'#f97316', dark:'#c2410c', base:'#1c0800' },
+    red:      { light:'#f87171', mid:'#ef4444', dark:'#b91c1c', base:'#1c0000' },
+    pink:     { light:'#f472b6', mid:'#ec4899', dark:'#be185d', base:'#1e0015' },
+    rose:     { light:'#fb7185', mid:'#f43f5e', dark:'#be123c', base:'#1e0010' },
+    gold:     { light:'#fcd34d', mid:'#f59e0b', dark:'#92400e', base:'#1a0e00' },
+    neon:     { light:'#39ff14', mid:'#00e676', dark:'#00c853', base:'#000a00' },
+    white:    { light:'#ffffff', mid:'#f1f5f9', dark:'#e2e8f0', base:'#f8fafc' },
+    silver:   { light:'#e2e8f0', mid:'#94a3b8', dark:'#64748b', base:'#1e2433' },
+    gray:     { light:'#9ca3af', mid:'#6b7280', dark:'#374151', base:'#111827' },
+    black:    { light:'#374151', mid:'#1f2937', dark:'#111827', base:'#030712' },
+    pastel:   { light:'#c4b5fd', mid:'#a78bfa', dark:'#8b5cf6', base:'#1e1040' },
+    coral:    { light:'#fca5a1', mid:'#f87171', dark:'#dc2626', base:'#1e0a00' },
+    turquoise:{ light:'#5eead4', mid:'#2dd4bf', dark:'#0d9488', base:'#051e1c' },
+    lavender: { light:'#ddd6fe', mid:'#c4b5fd', dark:'#7c3aed', base:'#1a0a3e' },
+  },
+
+  // ── PALETTE COMBOS (2-color pairs) ────────────────────────────
+  COMBOS: {
+    'purple blue':  ['#7c3aed','#3b82f6'],
+    'purple pink':  ['#7c3aed','#ec4899'],
+    'indigo cyan':  ['#6366f1','#06b6d4'],
+    'blue cyan':    ['#3b82f6','#06b6d4'],
+    'pink orange':  ['#ec4899','#f97316'],
+    'green teal':   ['#22c55e','#14b8a6'],
+    'orange yellow':['#f97316','#f59e0b'],
+    'red pink':     ['#ef4444','#ec4899'],
+    'gold amber':   ['#f59e0b','#fbbf24'],
+    'cyan teal':    ['#06b6d4','#14b8a6'],
+    'indigo purple':['#6366f1','#7c3aed'],
+    'neon dark':    ['#00e676','#00bcd4'],
+  },
+
+  // ── MOOD → MODIFIER MAP ───────────────────────────────────────
+  MOODS: {
+    dark:         { bg:'#0b0b10', darkMode:true,  opMul:1.0, noiseBoost: 0 },
+    light:        { bg:'#f8fafc', darkMode:false, opMul:0.7, noiseBoost: 0 },
+    minimal:      { opMul:0.6,  noiseMul:0.4, preferGrad:true },
+    premium:      { opMul:1.0,  noiseMul:0.6, vignette:0.55, preferMesh:true },
+    subtle:       { opMul:0.45, noiseMul:0.35 },
+    bold:         { opMul:1.0,  noiseMul:1.0 },
+    vibrant:      { opMul:1.0,  satBoost:1.3  },
+    corporate:    { opMul:0.75, preferLinear:true, noiseMul:0.3 },
+    playful:      { opMul:1.0,  preferMesh:true,   noiseMul:0.8 },
+    futuristic:   { opMul:0.9,  preferFlow:true,   darkMode:true },
+    elegant:      { opMul:0.85, noiseMul:0.3, vignette:0.4, preferLinear:true },
+    modern:       { opMul:0.9,  noiseMul:0.5, preferGrad:true },
+    clean:        { opMul:0.7,  noiseMul:0 },
+    soft:         { opMul:0.55, noiseMul:0.4, vignette:0.2 },
+    dramatic:     { opMul:1.0,  vignette:0.7, darkMode:true },
+    retro:        { opMul:0.8,  preferNoise:true },
+    neon:         { opMul:1.0,  darkMode:true, glowEffect:true },
+    cozy:         { opMul:0.8,  warmBias:true, noiseMul:0.6 },
+    professional: { opMul:0.8,  preferLinear:true, noiseMul:0.25, darkMode:true },
+    luxury:       { opMul:1.0,  vignette:0.55, preferMesh:true, noiseMul:0.4 },
+    fresh:        { opMul:0.75, preferGrad:true },
+    dreamy:       { opMul:0.7,  preferMesh:true, noiseMul:0.5 },
+  },
+
+  // ── USE-CASE HINTS ────────────────────────────────────────────
+  USE_CASES: {
+    dashboard:   { preferDark:true, preferMinimal:true, preferGrad:true },
+    landing:     { preferVibrant:true, preferGrad:true },
+    mobile:      { preferDark:true,   preferGrad:true },
+    banner:      { preferBold:true,   preferGrad:true },
+    hero:        { preferBold:true,   preferGrad:true },
+    saas:        { preferDark:true,   preferMinimal:true },
+    fintech:     { preferDark:true,   colorHint:'indigo', preferGrad:true },
+    health:      { colorHint:'teal',  darkMode:false },
+    social:      { preferVibrant:true },
+    marketing:   { preferBold:true,   preferGrad:true },
+    app:         { preferDark:true,   preferGrad:true },
+    wallpaper:   { preferComplex:true },
+    portfolio:   { preferDark:true,   preferMinimal:true },
+    ecommerce:   { preferLight:true,  preferGrad:true },
+    gaming:      { preferDark:true,   preferFlow:true, neonBias:true },
+    crypto:      { preferDark:true,   colorHint:'indigo' },
+    ai:          { preferDark:true,   colorHint:'indigo', preferFlow:true },
+    music:       { preferDark:true,   preferFlow:true },
+    travel:      { colorHint:'cyan',  preferGrad:true },
+    food:        { colorHint:'orange', darkMode:false },
+    fitness:     { colorHint:'green', preferVibrant:true },
+  },
+
+  // ── GENERATOR KEYWORDS ────────────────────────────────────────
+  GEN_KEYWORDS: {
+    gradient:'gradient', linear:'gradient', radial:'gradient', mesh:'gradient',
+    aurora:'gradient',   conic:'gradient',  glow:'gradient',   fade:'gradient',
+    ombre:'gradient',    blend:'gradient',  sweep:'gradient',
+    geometric:'geometric', hexagon:'geometric', hex:'geometric', honeycomb:'geometric',
+    triangle:'geometric',  dots:'geometric',    circles:'geometric', stripes:'geometric',
+    chevron:'geometric',   grid:'geometric',    pattern:'geometric', moroccan:'geometric',
+    islamic:'geometric',   plaid:'geometric',   truchet:'geometric',
+    noise:'noise',     organic:'noise',   terrain:'noise',   cloud:'noise',
+    fractal:'noise',   marble:'noise',    plasma:'noise',    static:'noise',
+    flow:'flowfield',  particle:'flowfield', wave:'flowfield',  stream:'flowfield',
+    curl:'flowfield',  field:'flowfield',    lines:'flowfield',
+    glass:'material',  frosted:'material',   material:'material',
+    blur:'material',   translucent:'material',
+  },
+
+  // ── GRADIENT SUBTYPE KEYWORDS ─────────────────────────────────
+  GRAD_SUBTYPES: {
+    linear:'linear', horizontal:'linear', vertical:'linear', diagonal:'linear',
+    radial:'radial', circular:'radial',   center:'radial',
+    mesh:'mesh',     multicolor:'mesh',   multi:'mesh',
+    aurora:'aurora', northern:'aurora',   polar:'aurora',   cosmic:'aurora',
+    conic:'conic',   sweep:'conic',       spin:'conic',
+  },
+
+  // ── GEO SUBTYPE KEYWORDS ──────────────────────────────────────
+  GEO_SUBTYPES: {
+    hex:'hex', hexagon:'hex', honeycomb:'hex',
+    triangle:'triangles', triangles:'triangles',
+    dot:'dots', dots:'dots', circle:'dots', circles:'dots', polka:'dots',
+    stripe:'stripes', stripes:'stripes', band:'stripes',
+    chevron:'chevron', zigzag:'chevron', herringbone:'chevron',
+    isometric:'isogrid', isogrid:'isogrid', iso:'isogrid',
+    dotgrid:'dotgrid', grid:'dotgrid',
+    moroccan:'moroccan', arabesque:'moroccan',
+    islamic:'islamic',
+    truchet:'truchet',
+    plaid:'plaid', tartan:'plaid',
+    houndstooth:'houndstooth',
+  },
+
+  // ── NOISE SUBTYPE KEYWORDS ────────────────────────────────────
+  NOISE_SUBTYPES: {
+    fbm:'fbm', fractal:'fbm', cloud:'fbm', fog:'fbm', smoke:'fbm', organic:'fbm',
+    marble:'marble',
+    wood:'wood', grain:'wood',
+    cells:'cells', voronoi:'cells',
+    plasma:'plasma',
+  },
+
+  // ── FLOW SUBTYPE KEYWORDS ─────────────────────────────────────
+  FLOW_SUBTYPES: {
+    curl:'curl', turbulent:'curl', chaotic:'curl',
+    perlin:'perlin', wave:'perlin', smooth:'perlin',
+    radial:'radial', burst:'radial', spiral:'radial',
+  },
+
+  // ── AUTOCOMPLETE SUGGESTIONS ──────────────────────────────────
+  SUGGESTIONS: [
+    'dark fintech dashboard with subtle indigo gradient',
+    'minimal saas landing page clean gradient',
+    'vibrant mobile app background mesh gradient purple pink',
+    'dark gaming background neon green flow field',
+    'elegant marketing banner warm gold radial gradient',
+    'corporate blue dashboard minimal noise',
+    'cyberpunk neon dark background flow particles',
+    'pastel health app light teal gradient',
+    'premium crypto dashboard purple mesh',
+    'retro orange warm noise texture background',
+    'modern ai product dark indigo aurora gradient',
+    'clean white landing page subtle dot grid',
+    'bold social media banner gradient pink orange',
+    'dark music app background curl flow field',
+    'luxury gold dark background radial gradient',
+    'futuristic blue particle flow dark background',
+    'fresh green fitness app light gradient',
+    'dramatic purple dark hero background vignette',
+    'minimal portfolio dark dots pattern',
+    'cozy warm amber gradient landing page',
+  ],
+
+  // ── COPILOT DELTA COMMANDS ─────────────────────────────────────
+  COPILOT: {
+    'make it darker':           { fn: () => AI._shiftBrightness(-0.15) },
+    'darker':                   { fn: () => AI._shiftBrightness(-0.15) },
+    'make it lighter':          { fn: () => AI._shiftBrightness(+0.15) },
+    'lighter':                  { fn: () => AI._shiftBrightness(+0.15) },
+    'more premium':             { fn: () => AI._applyMoodDelta('premium') },
+    'premium':                  { fn: () => AI._applyMoodDelta('premium') },
+    'more minimal':             { fn: () => AI._applyMoodDelta('minimal') },
+    'minimal':                  { fn: () => AI._applyMoodDelta('minimal') },
+    'more subtle':              { fn: () => AI._scaleProp('opacity',-0.18) },
+    'subtle':                   { fn: () => AI._scaleProp('opacity',-0.18) },
+    'more bold':                { fn: () => AI._scaleProp('opacity',+0.2) },
+    'bolder':                   { fn: () => AI._scaleProp('opacity',+0.2) },
+    'add depth':                { fn: () => AI._addVignette(+0.2) },
+    'more depth':               { fn: () => AI._addVignette(+0.2) },
+    'less depth':               { fn: () => AI._addVignette(-0.2) },
+    'reduce pattern':           { fn: () => AI._scaleProp('opacity',-0.2,'geometric') },
+    'reduce pattern visibility':{ fn: () => AI._scaleProp('opacity',-0.25,'geometric') },
+    'more vibrant':             { fn: () => AI._shiftSaturation(+0.2) },
+    'vibrant':                  { fn: () => AI._shiftSaturation(+0.2) },
+    'more muted':               { fn: () => AI._shiftSaturation(-0.2) },
+    'muted':                    { fn: () => AI._shiftSaturation(-0.2) },
+    'warmer':                   { fn: () => AI._shiftWarm(true) },
+    'cooler':                   { fn: () => AI._shiftWarm(false) },
+    'more noise':               { fn: () => AI._adjustNoise(+0.08) },
+    'less noise':               { fn: () => AI._adjustNoise(-0.06) },
+    'add noise':                { fn: () => AI._adjustNoise(+0.08) },
+    'remove noise':             { fn: () => AI._adjustNoise(-1) },
+    'increase scale':           { fn: () => AI._scaleSize(+0.25) },
+    'decrease scale':           { fn: () => AI._scaleSize(-0.2) },
+    'bigger pattern':           { fn: () => AI._scaleSize(+0.3) },
+    'smaller pattern':          { fn: () => AI._scaleSize(-0.25) },
+    'invert':                   { fn: () => AI._invertColors() },
+    'flip colors':              { fn: () => AI._invertColors() },
+    'shuffle colors':           { fn: () => shuffle() },
+    'randomize':                { fn: () => shuffle() },
+  },
+
+  // ── PARSE PROMPT ─────────────────────────────────────────────
+  parse(rawPrompt) {
+    const text = rawPrompt.toLowerCase()
+    const words = text.split(/[\s\-,/]+/)
+    const bigrams = []
+    for (let i = 0; i < words.length - 1; i++) bigrams.push(words[i]+' '+words[i+1])
+    const tokens = [...bigrams, ...words]
+
+    let result = {
+      generator: null,
+      gradType: null,
+      geoType: null,
+      noiseType: null,
+      flowType: null,
+      colors: [],
+      colorCombo: null,
+      moods: [],
+      useCase: null,
+      dark: null,
+      raw: rawPrompt,
+    }
+
+    // Color combo detection (bigrams first)
+    for (const [combo, pair] of Object.entries(AI.COMBOS)) {
+      if (text.includes(combo)) { result.colorCombo = pair; break }
+    }
+
+    // Individual token classification
+    for (const t of tokens) {
+      if (AI.GEN_KEYWORDS[t] && !result.generator) result.generator = AI.GEN_KEYWORDS[t]
+      if (AI.GRAD_SUBTYPES[t]) result.gradType = AI.GRAD_SUBTYPES[t]
+      if (AI.GEO_SUBTYPES[t]) result.geoType = AI.GEO_SUBTYPES[t]
+      if (AI.NOISE_SUBTYPES[t]) result.noiseType = AI.NOISE_SUBTYPES[t]
+      if (AI.FLOW_SUBTYPES[t]) result.flowType = AI.FLOW_SUBTYPES[t]
+      if (AI.COLORS[t]) result.colors.push(t)
+      if (AI.MOODS[t]) result.moods.push(t)
+      if (AI.USE_CASES[t]) { result.useCase = t; const uc = AI.USE_CASES[t]; if(uc.colorHint&&!result.colors.length) result.colors.push(uc.colorHint) }
+    }
+
+    // Dark/light detection
+    if (text.match(/\bdark\b/)) result.dark = true
+    if (text.match(/\blight\b|\bbright\b|\bwhite\b/)) result.dark = false
+
+    // Use-case generator hints
+    if (result.useCase) {
+      const uc = AI.USE_CASES[result.useCase]
+      if (!result.generator) {
+        if (uc.preferFlow) result.generator = 'flowfield'
+        else if (uc.preferNoise) result.generator = 'noise'
+        else result.generator = 'gradient'
+      }
+    }
+
+    // Default generator
+    if (!result.generator) result.generator = 'gradient'
+
+    // Default grad type from mood
+    if (result.generator === 'gradient' && !result.gradType) {
+      const hasMesh  = result.moods.some(m => AI.MOODS[m]?.preferMesh)
+      const hasLinear= result.moods.some(m => AI.MOODS[m]?.preferLinear)
+      if (hasMesh) result.gradType = 'mesh'
+      else if (hasLinear) result.gradType = 'linear'
+      else if (text.includes('aurora') || text.includes('northern')) result.gradType = 'aurora'
+      else result.gradType = 'radial'
+    }
+
+    return result
+  },
+
+  // ── RESOLVE PARAMS ────────────────────────────────────────────
+  resolve(parsed) {
+    const isDark = parsed.dark !== null ? parsed.dark
+      : parsed.moods.some(m => AI.MOODS[m]?.darkMode !== false)
+      || ['dashboard','mobile','fintech','gaming','crypto','ai','music','portfolio'].includes(parsed.useCase)
+
+    // Collect mood modifiers
+    let opMul = 0.85, noiseMul = 0.5, vignette = 0
+    for (const m of parsed.moods) {
+      const mod = AI.MOODS[m] || {}
+      if (mod.opMul !== undefined) opMul = mod.opMul
+      if (mod.noiseMul !== undefined) noiseMul = mod.noiseMul
+      if (mod.vignette !== undefined) vignette = mod.vignette
+    }
+
+    // Pick colors
+    const palette = AI._buildPalette(parsed, isDark)
+
+    const p = {}
+
+    if (parsed.generator === 'gradient') {
+      const type = parsed.gradType || 'radial'
+      let stops
+      if (parsed.colorCombo) stops = [...parsed.colorCombo, isDark ? '#050510' : '#f0f4ff']
+      else stops = palette.stops
+      if (type === 'aurora') stops = [isDark ? '#050a14' : '#e0f2fe', palette.mid, palette.accent, palette.accent2]
+      if (type === 'mesh')   stops = [palette.base, palette.mid, palette.accent, palette.accent2]
+      p.gradient = {
+        type, stops,
+        angle: AI._angleFromMood(parsed),
+        cx: 0.35, cy: 0.28, radX: 0.5, radY: 0.5,
+        opacity: opMul,
+      }
+    }
+
+    if (parsed.generator === 'geometric') {
+      const type = parsed.geoType || 'hex'
+      p.geometric = {
+        type, size: 44, gap: 2, rotation: 0, lineW: 1.2,
+        colorA: palette.mid, colorB: isDark ? '#0b0b10' : '#f8fafc',
+        opacity: Math.min(opMul * 0.3, 0.35), filled: false,
+      }
+    }
+
+    if (parsed.generator === 'noise') {
+      const type = parsed.noiseType || 'fbm'
+      p.noise = {
+        type, scale: 3.5, octaves: 5, turbulence: 0.5,
+        colorA: isDark ? '#0d0d20' : '#e0e8ff',
+        colorB: palette.mid, colorC: palette.accent,
+        opacity: opMul, seed: Math.random(),
+      }
+    }
+
+    if (parsed.generator === 'flowfield') {
+      const type = parsed.flowType || 'curl'
+      p.flowfield = {
+        type, count: 2000, stepLen: 3, lineW: 1,
+        speed: 0.8, opacity: opMul * 0.75,
+        colorA: palette.mid, colorB: palette.accent,
+        bg: isDark ? '#050510' : '#f0f4ff', seed: Math.random(),
+      }
+    }
+
+    if (parsed.generator === 'material') {
+      p.material = {
+        type: 'glassmorphism', blur: 12, opacity: 0.12,
+        color: isDark ? '#ffffff' : '#000000',
+        tint: palette.mid, grain: 0.06,
+      }
+    }
+
+    return { generator: parsed.generator, params: p }
+  },
+
+  // ── PALETTE BUILDER ────────────────────────────────────────────
+  _buildPalette(parsed, isDark) {
+    const primaryKey = parsed.colors[0] || (isDark ? 'indigo' : 'blue')
+    const secondaryKey = parsed.colors[1] || AI._harmonic(primaryKey)
+    const prim  = AI.COLORS[primaryKey]  || AI.COLORS.indigo
+    const sec   = AI.COLORS[secondaryKey] || AI.COLORS.cyan
+
+    return {
+      base:    isDark ? (prim.base || '#0b0b14') : '#f8fafc',
+      mid:     prim.mid,
+      accent:  sec.mid,
+      accent2: prim.dark,
+      stops:   isDark
+        ? [prim.mid, sec.mid, prim.base || '#050510']
+        : [prim.light, sec.light, '#ffffff'],
+    }
+  },
+
+  _harmonic(key) {
+    const map = {
+      purple:'cyan', indigo:'cyan', blue:'purple', cyan:'indigo',
+      teal:'blue', green:'cyan', pink:'purple', orange:'pink',
+      red:'orange', yellow:'orange', gold:'orange', neon:'cyan',
+      coral:'pink', lavender:'cyan', pastel:'pink', violet:'cyan',
+    }
+    return map[key] || 'cyan'
+  },
+
+  _angleFromMood(parsed) {
+    if (parsed.moods.includes('elegant'))  return 150
+    if (parsed.moods.includes('corporate')) return 90
+    if (parsed.moods.includes('dynamic'))  return 45
+    return 135
+  },
+
+  // ── APPLY ─────────────────────────────────────────────────────
+  apply(result) {
+    S.gen = result.generator
+    Object.assign(S.params[result.generator], result.params[result.generator] || {})
+    // Sync UI
+    selectGen(S.gen)
+    render(true)
+    updateSuggestions(result)
+  },
+
+  // ── COPILOT DELTA HELPERS ─────────────────────────────────────
+  _shiftBrightness(delta) {
+    const p = S.params[S.gen]
+    const shift = c => {
+      const {r,g,b} = hex2rgb(c)
+      const d = Math.round(delta * 255)
+      return rgb2hex(clamp(r+d,0,255),clamp(g+d,0,255),clamp(b+d,0,255))
+    }
+    if (p.stops) p.stops = p.stops.map(shift)
+    if (p.colorA) p.colorA = shift(p.colorA)
+    if (p.colorB) p.colorB = shift(p.colorB)
+    if (p.bg)     p.bg     = shift(p.bg)
+    render(true)
+  },
+
+  _scaleProp(prop, delta, forcedGen) {
+    const p = S.params[forcedGen || S.gen]
+    if (p[prop] !== undefined) p[prop] = clamp(p[prop] + delta)
+    render(true)
+  },
+
+  _addVignette(delta) {
+    // For gradient, adjust opacity slightly and shift bg darker
+    AI._shiftBrightness(delta < 0 ? 0.05 : -0.05)
+    const p = S.params[S.gen]
+    if (p.opacity !== undefined) p.opacity = clamp(p.opacity + delta * 0.3)
+    render(true)
+  },
+
+  _adjustNoise(delta) {
+    const p = S.params.noise
+    p.turbulence = clamp(p.turbulence + delta)
+    if (S.gen === 'noise') render(true)
+  },
+
+  _scaleSize(delta) {
+    const p = S.params[S.gen]
+    if (p.scale !== undefined)  p.scale  = Math.max(0.5, p.scale  + delta * p.scale)
+    if (p.size  !== undefined)  p.size   = Math.max(8,   p.size   + Math.round(delta * p.size))
+    render(true)
+  },
+
+  _applyMoodDelta(mood) {
+    const mod = AI.MOODS[mood] || {}
+    const p = S.params[S.gen]
+    if (mod.opMul   !== undefined && p.opacity    !== undefined) p.opacity    = clamp(mod.opMul)
+    if (mod.noiseMul!== undefined && p.turbulence !== undefined) p.turbulence = clamp(mod.noiseMul)
+    if (mod.darkMode) AI._shiftBrightness(-0.12)
+    else              render(true)
+  },
+
+  _shiftSaturation(delta) {
+    const p = S.params[S.gen]
+    const sat = (hex) => {
+      let {r,g,b} = hex2rgb(hex)
+      r /= 255; g /= 255; b /= 255
+      const max=Math.max(r,g,b), min=Math.min(r,g,b), l=(max+min)/2
+      if (max===min) return hex
+      let s=(max-min)/(l>0.5?2-max-min:max+min)
+      s = clamp(s + delta)
+      const h = (() => {
+        const d = max - min
+        if (max===r) return ((g-b)/d+(g<b?6:0))/6
+        if (max===g) return ((b-r)/d+2)/6
+        return ((r-g)/d+4)/6
+      })()
+      const hue2rgb=(p,q,t)=>{ if(t<0)t+=1;if(t>1)t-=1;if(t<1/6)return p+(q-p)*6*t;if(t<1/2)return q;if(t<2/3)return p+(q-p)*(2/3-t)*6;return p }
+      const q=l<0.5?l*(1+s):l+s-l*s, pv=2*l-q
+      return rgb2hex(...[h+1/3,h,h-1/3].map(t=>Math.round(hue2rgb(pv,q,t)*255)))
+    }
+    if (p.stops)  p.stops  = p.stops.map(sat)
+    if (p.colorA) p.colorA = sat(p.colorA)
+    if (p.colorB) p.colorB = sat(p.colorB)
+    render(true)
+  },
+
+  _shiftWarm(warmer) {
+    const p = S.params[S.gen]
+    const shift = hex => {
+      const {r,g,b} = hex2rgb(hex)
+      return warmer
+        ? rgb2hex(clamp(r+20,0,255), g, clamp(b-18,0,255))
+        : rgb2hex(clamp(r-18,0,255), g, clamp(b+20,0,255))
+    }
+    if (p.stops)  p.stops  = p.stops.map(shift)
+    if (p.colorA) p.colorA = shift(p.colorA)
+    if (p.colorB) p.colorB = shift(p.colorB)
+    render(true)
+  },
+
+  _invertColors() {
+    const p = S.params[S.gen]
+    const inv = hex => { const {r,g,b}=hex2rgb(hex); return rgb2hex(255-r,255-g,255-b) }
+    if (p.stops)  p.stops  = p.stops.map(inv)
+    if (p.colorA) p.colorA = inv(p.colorA)
+    if (p.colorB) p.colorB = inv(p.colorB)
+    if (p.bg)     p.bg     = inv(p.bg)
+    render(true)
+  },
+
+  // ── MAIN ENTRY: generate from prompt ─────────────────────────
+  generate(prompt) {
+    if (!prompt.trim()) return
+    const parsed  = AI.parse(prompt)
+    const result  = AI.resolve(parsed)
+    AI.apply(result)
+    return result
+  },
+
+  // ── COPILOT ENTRY ─────────────────────────────────────────────
+  copilot(command) {
+    const cmd = command.toLowerCase().trim()
+    // Exact match
+    if (AI.COPILOT[cmd]) { AI.COPILOT[cmd].fn(); return true }
+    // Partial match
+    for (const [key, val] of Object.entries(AI.COPILOT)) {
+      if (cmd.includes(key) || key.includes(cmd)) { val.fn(); return true }
+    }
+    return false
+  },
+}
+
+// ── UI FUNCTIONS ──────────────────────────────────────────────────
+function aiSetStatus(msg, cls='') {
+  const el = document.getElementById('ai-status')
+  el.textContent = msg
+  el.className = cls
+}
+
+function aiShowResult(icon, text) {
+  const badge = document.getElementById('ai-result')
+  document.getElementById('ai-result-icon').textContent = icon
+  document.getElementById('ai-result-text').textContent = text
+  badge.classList.add('show')
+  setTimeout(() => badge.classList.remove('show'), 3000)
+}
+
+function updateSuggestions(result) {
+  // After generation, show contextual copilot chips
+  const chips = [
+    { label:'💎 Premium', copilot:'more premium' },
+    { label:'🌑 Darker',  copilot:'make it darker' },
+    { label:'🌕 Lighter', copilot:'make it lighter' },
+    { label:'🔇 Subtle',  copilot:'more subtle' },
+    { label:'🔊 Bold',    copilot:'more bold' },
+    { label:'🌊 Depth',   copilot:'add depth' },
+    { label:'🌡 Warmer',  copilot:'warmer' },
+    { label:'❄ Cooler',   copilot:'cooler' },
+  ]
+  const container = document.getElementById('ai-suggestions')
+  container.innerHTML = chips.map(c =>
+    `<span class="ai-chip cop" data-copilot="${c.copilot}">${c.label}</span>`
+  ).join('')
+  bindChips()
+}
+
+function bindChips() {
+  document.querySelectorAll('.ai-chip[data-prompt]').forEach(chip => {
+    chip.addEventListener('click', () => runAIPrompt(chip.dataset.prompt))
+  })
+  document.querySelectorAll('.ai-chip[data-copilot]').forEach(chip => {
+    chip.addEventListener('click', () => runCopilot(chip.dataset.copilot))
+  })
+}
+
+function runAIPrompt(prompt) {
+  const input = document.getElementById('ai-prompt')
+  input.value = prompt
+  aiSetStatus('✦ Thinking…', 'ai-thinking')
+  const btn = document.getElementById('ai-send')
+  btn.classList.add('spin')
+  // Simulate brief "thinking" for UX feel
+  setTimeout(() => {
+    const result = AI.generate(prompt)
+    btn.classList.remove('spin')
+    if (result) {
+      aiSetStatus(`✓ Applied: ${result.generator} — ${prompt.slice(0,40)}…`, '')
+      aiShowResult('✦', `${result.generator.charAt(0).toUpperCase()+result.generator.slice(1)} generated`)
+    } else {
+      aiSetStatus('⚠ Could not parse prompt — try different words', '')
+    }
+  }, 320)
+}
+
+function runCopilot(command) {
+  const ok = AI.copilot(command)
+  if (ok) {
+    aiSetStatus(`✓ "${command}" applied`, '')
+    aiShowResult('⚡', command)
+  } else {
+    // Fallback: try as full prompt
+    runAIPrompt(command)
+  }
+}
+
+// ── AUTOCOMPLETE ──────────────────────────────────────────────────
+let acIndex = -1
+function showAutocomplete(query) {
+  const ac = document.getElementById('ai-autocomplete')
+  if (!query || query.length < 3) { ac.style.display='none'; return }
+  const matches = AI.SUGGESTIONS.filter(s =>
+    s.toLowerCase().includes(query.toLowerCase())
+  ).slice(0, 5)
+  if (!matches.length) { ac.style.display='none'; return }
+  ac.innerHTML = matches.map((s,i) =>
+    `<div class="ai-ac-item" data-idx="${i}"><span>✦</span>${s}</div>`
+  ).join('')
+  ac.style.display = 'block'
+  acIndex = -1
+  ac.querySelectorAll('.ai-ac-item').forEach(el => {
+    el.addEventListener('click', () => {
+      document.getElementById('ai-prompt').value = el.textContent.replace('✦','').trim()
+      ac.style.display = 'none'
+      runAIPrompt(document.getElementById('ai-prompt').value)
+    })
+  })
+}
+
+// ── AI BAR EVENT WIRING ───────────────────────────────────────────
+document.getElementById('ai-send').addEventListener('click', () => {
+  const v = document.getElementById('ai-prompt').value.trim()
+  if (v) runAIPrompt(v)
+})
+
+document.getElementById('ai-prompt').addEventListener('keydown', e => {
+  const ac = document.getElementById('ai-autocomplete')
+  const items = ac.querySelectorAll('.ai-ac-item')
+  if (e.key === 'Enter') {
+    e.preventDefault()
+    ac.style.display = 'none'
+    const v = e.target.value.trim()
+    if (v) runAIPrompt(v)
+  } else if (e.key === 'ArrowDown') {
+    acIndex = Math.min(acIndex+1, items.length-1)
+    items.forEach((el,i)=>el.classList.toggle('sel',i===acIndex))
+    if (items[acIndex]) e.target.value = items[acIndex].textContent.replace('✦','').trim()
+    e.preventDefault()
+  } else if (e.key === 'ArrowUp') {
+    acIndex = Math.max(acIndex-1, -1)
+    items.forEach((el,i)=>el.classList.toggle('sel',i===acIndex))
+    e.preventDefault()
+  } else if (e.key === 'Escape') {
+    ac.style.display = 'none'
+  }
+})
+
+document.getElementById('ai-prompt').addEventListener('input', e => {
+  showAutocomplete(e.target.value)
+})
+
+document.addEventListener('click', e => {
+  if (!e.target.closest('#ai-prompt-wrap'))
+    document.getElementById('ai-autocomplete').style.display = 'none'
+})
+
+// Bind initial chips
+bindChips()
 </script>
 </body>
 </html>
