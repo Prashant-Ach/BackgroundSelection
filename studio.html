@@ -234,15 +234,14 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <!-- AI PROMPT BAR -->
   <div id="ai-bar">
     <div id="ai-suggestions">
-      <span class="ai-chip" data-prompt="dark fintech dashboard subtle indigo gradient minimal noise">💼 Fintech</span>
-      <span class="ai-chip" data-prompt="minimal saas landing page clean light blue gradient">🚀 SaaS</span>
-      <span class="ai-chip" data-prompt="vibrant mobile app mesh gradient purple pink">📱 Mobile</span>
-      <span class="ai-chip" data-prompt="cyberpunk neon green dark background flow field">⚡ Cyberpunk</span>
-      <span class="ai-chip" data-prompt="elegant marketing banner warm gold radial gradient">✨ Marketing</span>
-      <span class="ai-chip cop" data-copilot="make it darker">🌑 Darker</span>
-      <span class="ai-chip cop" data-copilot="more premium">💎 Premium</span>
-      <span class="ai-chip cop" data-copilot="more subtle">🔇 Subtle</span>
-      <span class="ai-chip cop" data-copilot="add depth">🌊 Depth</span>
+      <span class="ai-chip" data-prompt="dark magic blue blur abstract background vignette art">✦ Magic Blue</span>
+      <span class="ai-chip" data-prompt="dark fintech dashboard premium indigo purple mesh gradient">💼 Fintech</span>
+      <span class="ai-chip" data-prompt="vibrant mobile mesh gradient purple pink abstract">📱 Mobile</span>
+      <span class="ai-chip" data-prompt="cosmic dark purple nebula space glow abstract">🌌 Cosmic</span>
+      <span class="ai-chip" data-prompt="aurora green teal northern lights dark glow">🌌 Aurora</span>
+      <span class="ai-chip" data-prompt="neon cyan electric dark cyberpunk glow abstract">⚡ Neon</span>
+      <span class="ai-chip" data-prompt="minimal saas landing clean blue gradient subtle">🚀 SaaS</span>
+      <span class="ai-chip" data-prompt="warm gold luxury dark spotlight hero elegant">✨ Luxury</span>
     </div>
     <div id="ai-input-row">
       <div id="ai-prompt-wrap">
@@ -296,6 +295,7 @@ const S = {
   showSafeZone: false,
   history: [],
   palette: [],
+  composite: null,   // when set by AI, overrides single-generator render
   params: {
     gradient: { type:'linear', stops:['#6366f1','#ec4899','#06b6d4'], angle:135, radX:.5, radY:.5, cx:.5, cy:.5, opacity:1 },
     geometric: { type:'hex', size:48, gap:2, rotation:0, lineW:1.5, colorA:'#6366f1', colorB:'#0b0b10', opacity:.25, filled:false },
@@ -821,6 +821,222 @@ function _applyVignette(c,w,h,strength){
 }
 
 // ═══════════════════════════════════════════════════════════
+// COMPOSITE RENDER ENGINE
+// Stacks multiple visual layers — used by AI prompt engine
+// ═══════════════════════════════════════════════════════════
+function genComposite(c, w, h, layers) {
+  for (const layer of layers) {
+    const op = layer.opacity !== undefined ? layer.opacity : 1
+    const blend = layer.blend || 'source-over'
+    c.save()
+    if (blend !== 'source-over') c.globalCompositeOperation = blend
+    c.globalAlpha = op
+
+    switch (layer.type) {
+
+      case 'fill': {
+        c.fillStyle = layer.color || '#000'
+        c.fillRect(0, 0, w, h)
+        break
+      }
+
+      case 'linearGrad': {
+        const rad = (layer.angle || 135) * Math.PI / 180
+        const len = Math.sqrt(w*w+h*h) / 2
+        const g = c.createLinearGradient(
+          w/2 - Math.cos(rad)*len, h/2 - Math.sin(rad)*len,
+          w/2 + Math.cos(rad)*len, h/2 + Math.sin(rad)*len
+        )
+        ;(layer.stops||[]).forEach((s,i,a) => g.addColorStop(i/Math.max(a.length-1,1), s))
+        c.fillStyle = g; c.fillRect(0,0,w,h)
+        break
+      }
+
+      case 'radialGrad': {
+        const cx2 = w*(layer.cx||.5), cy2 = h*(layer.cy||.4)
+        const r2  = Math.sqrt(w*w+h*h) * (layer.r||.8)
+        const g = c.createRadialGradient(cx2,cy2,0, cx2,cy2,r2)
+        ;(layer.stops||[]).forEach((s,i,a) => g.addColorStop(i/Math.max(a.length-1,1), s))
+        c.fillStyle = g; c.fillRect(0,0,w,h)
+        break
+      }
+
+      case 'blobGlow': {
+        for (const blob of (layer.blobs||[])) {
+          const bx = w*blob.x, by = h*blob.y
+          const br = Math.sqrt(w*w+h*h) * (blob.r||.4)
+          const {r:cr,g:cg,b:cb} = hex2rgb(blob.color||'#6366f1')
+          const ba = blob.alpha || 0.5
+          const g = c.createRadialGradient(bx,by,0, bx,by,br)
+          g.addColorStop(0,   `rgba(${cr},${cg},${cb},${ba})`)
+          g.addColorStop(0.4, `rgba(${cr},${cg},${cb},${(ba*.45).toFixed(2)})`)
+          g.addColorStop(1,   `rgba(${cr},${cg},${cb},0)`)
+          c.fillStyle = g; c.fillRect(0,0,w,h)
+        }
+        break
+      }
+
+      case 'aurora': {
+        // Wavy horizontal aurora bands
+        const bands = layer.bands || []
+        for (const band of bands) {
+          const {r:cr,g:cg,b:cb} = hex2rgb(band.color||'#00c6a7')
+          const by2 = h * (band.y||.5)
+          const bh  = h * (band.height||.3)
+          const g = c.createLinearGradient(0, by2-bh, 0, by2+bh)
+          g.addColorStop(0, `rgba(${cr},${cg},${cb},0)`)
+          g.addColorStop(.5,`rgba(${cr},${cg},${cb},${band.alpha||.35})`)
+          g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`)
+          // wavy distortion via sinusoidal fill
+          c.beginPath()
+          const sx = getSimplex()
+          const wave = band.wave || 0.08
+          c.moveTo(0, by2 - bh)
+          for (let px=0; px<=w; px+=4) {
+            const wy = by2 + (sx ? sx.noise2D(px/w*3+band.seed||0, 0)*wave*h : 0)
+            c.lineTo(px, wy - bh*.5)
+          }
+          for (let px=w; px>=0; px-=4) {
+            const wy = by2 + (sx ? sx.noise2D(px/w*3+band.seed||0, 1)*wave*h : 0)
+            c.lineTo(px, wy + bh*.5)
+          }
+          c.closePath()
+          c.fillStyle = g; c.fill()
+        }
+        break
+      }
+
+      case 'noise2': {
+        // Lightweight noise overlay (not full pixel render — uses tiled canvas for speed)
+        const tmp2 = document.createElement('canvas')
+        const ts = Math.min(256, w, h)
+        tmp2.width = ts; tmp2.height = ts
+        const tc2 = tmp2.getContext('2d')
+        const id2 = tc2.createImageData(ts, ts)
+        const d2 = id2.data
+        const sx2 = getSimplex()
+        const sc2 = (layer.scale||3)/10
+        const ca2 = hex2rgb(layer.colorA||'#000'), cb2 = hex2rgb(layer.colorB||'#fff')
+        const seed2 = layer.seed || 0
+        for (let py=0; py<ts; py++) for (let px=0; px<ts; px++) {
+          let v = 0, amp=.5, freq=1
+          for (let o=0;o<(layer.octaves||4);o++) {
+            v += (sx2 ? sx2.noise2D(px/ts*sc2*10*freq+seed2, py/ts*sc2*10*freq+seed2) : Math.sin(px*.1*freq+py*.1*freq))*.5 * amp
+            amp*=.5; freq*=2
+          }
+          v = v*.5+.5
+          const i2=(py*ts+px)*4
+          d2[i2]  =Math.round(lerp(ca2.r,cb2.r,v))
+          d2[i2+1]=Math.round(lerp(ca2.g,cb2.g,v))
+          d2[i2+2]=Math.round(lerp(ca2.b,cb2.b,v))
+          d2[i2+3]=255
+        }
+        tc2.putImageData(id2, 0, 0)
+        // tile across canvas
+        const pat = c.createPattern(tmp2, 'repeat')
+        c.fillStyle = pat; c.fillRect(0,0,w,h)
+        break
+      }
+
+      case 'grain2': {
+        const tmp3 = document.createElement('canvas')
+        tmp3.width = w; tmp3.height = h
+        const tc3 = tmp3.getContext('2d')
+        const id3 = tc3.createImageData(w,h); const d3=id3.data
+        const gi = layer.intensity||.05
+        for (let i=0;i<d3.length;i+=4){
+          const v=(Math.random()*2-1)*gi*255
+          d3[i]=d3[i+1]=d3[i+2]=Math.round(128+v); d3[i+3]=Math.round(gi*220)
+        }
+        tc3.putImageData(id3,0,0)
+        c.save(); c.globalCompositeOperation='overlay'; c.drawImage(tmp3,0,0); c.restore()
+        break
+      }
+
+      case 'vignette2': {
+        const vs = layer.strength||.6
+        const g = c.createRadialGradient(w/2,h/2,0, w/2,h/2, Math.sqrt(w*w+h*h)*.7)
+        g.addColorStop(0,'rgba(0,0,0,0)')
+        g.addColorStop(.45,'rgba(0,0,0,0)')
+        g.addColorStop(1,`rgba(0,0,0,${vs})`)
+        c.save(); c.globalAlpha=1; c.globalCompositeOperation='source-over'
+        c.fillStyle=g; c.fillRect(0,0,w,h); c.restore()
+        break
+      }
+
+      case 'bokeh2': {
+        const {r:cr,g:cg,b:cb} = hex2rgb(layer.color||'#6366f1')
+        for (let i=0;i<(layer.count||80);i++) {
+          const bx=rand(0,w), by=rand(0,h), br=rand(layer.minR||15,layer.maxR||80), ba=rand(.015,layer.maxA||.14)
+          const g = c.createRadialGradient(bx,by,0,bx,by,br)
+          g.addColorStop(0,`rgba(${cr},${cg},${cb},${ba})`)
+          g.addColorStop(1,`rgba(${cr},${cg},${cb},0)`)
+          c.fillStyle=g; c.fillRect(bx-br,by-br,br*2,br*2)
+        }
+        break
+      }
+
+      case 'spotlight': {
+        // directional cone of light
+        const {r:cr,g:cg,b:cb} = hex2rgb(layer.color||'#ffffff')
+        const sx3 = w*(layer.x||.5), sy3 = 0
+        const sr = Math.sqrt(w*w+h*h)*(layer.r||.9)
+        const g = c.createRadialGradient(sx3,sy3,0,sx3,sy3,sr)
+        g.addColorStop(0, `rgba(${cr},${cg},${cb},${layer.alpha||.18})`)
+        g.addColorStop(.4, `rgba(${cr},${cg},${cb},${(layer.alpha||.18)*.3})`)
+        g.addColorStop(1, `rgba(${cr},${cg},${cb},0)`)
+        c.fillStyle=g; c.fillRect(0,0,w,h)
+        break
+      }
+
+      case 'scanlines2': {
+        c.globalAlpha = layer.opacity||.08
+        c.fillStyle = '#000'
+        const sp = layer.spacing||3
+        for(let y=0;y<h;y+=sp) c.fillRect(0,y,w,1)
+        break
+      }
+
+      case 'geo2': {
+        // Lightweight geometric overlay via existing engine
+        const gp = { type:layer.geoType||'hex', size:layer.size||60, gap:2, rotation:0,
+          lineW:1.2, colorA:layer.colorA||'#ffffff', colorB:'transparent',
+          opacity:layer.geoOpacity||.08, filled:layer.filled||false }
+        c.globalAlpha = layer.opacity||.08
+        c.strokeStyle = layer.colorA||'rgba(255,255,255,.15)'
+        c.fillStyle   = layer.colorA||'rgba(255,255,255,.15)'
+        c.lineWidth = 1.2
+        switch(layer.geoType||'hex'){
+          case 'hex':     _geoHex(c,w,h,layer.size||60,2,false); break
+          case 'dots':    _geoDots(c,w,h,layer.size||40,3); break
+          case 'dotgrid': _geoDotGrid(c,w,h,layer.size||40,3); break
+          case 'stripes': _geoStripes(c,w,h,layer.size||40,layer.angle||45); break
+        }
+        break
+      }
+
+      case 'chromatic': {
+        // chromatic aberration via pixel shift
+        const id4 = c.getImageData(0,0,w,h)
+        const src = new Uint8ClampedArray(id4.data)
+        const dst = id4.data
+        const off3 = layer.offset||3
+        for(let py=0;py<h;py++) for(let px=0;px<w;px++){
+          const i=( py*w+px)*4
+          const rx=Math.max(0,px-off3), ri=(py*w+rx)*4
+          const bx=Math.min(w-1,px+off3), bi=(py*w+bx)*4
+          dst[i]  = Math.round(dst[i]  *(1-(layer.amt||.5)) + src[ri]  *(layer.amt||.5))
+          dst[i+2]= Math.round(dst[i+2]*(1-(layer.amt||.5)) + src[bi+2]*(layer.amt||.5))
+        }
+        c.putImageData(id4,0,0)
+        break
+      }
+    }
+    c.restore()
+  }
+}
+
+// ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 let _renderTimer = null
@@ -834,6 +1050,14 @@ function _doRender(){
   const {w,h} = S
   canvas.width=w; canvas.height=h
   ctx.clearRect(0,0,w,h)
+
+  // ── COMPOSITE MODE (AI-generated) ─────────────────────────
+  if (S.composite && S.composite.layers) {
+    genComposite(ctx, w, h, S.composite.layers)
+    updateA11y(); updateCSSOutput(); fitCanvas(); _pushHistory()
+    return
+  }
+
   const p = S.params[S.gen]
   switch(S.gen){
     case 'gradient':  genGradient(ctx,w,h,p); break
@@ -1993,26 +2217,31 @@ const AI = {
 
   // ── AUTOCOMPLETE SUGGESTIONS ──────────────────────────────────
   SUGGESTIONS: [
-    'dark fintech dashboard with subtle indigo gradient',
-    'minimal saas landing page clean gradient',
-    'vibrant mobile app background mesh gradient purple pink',
-    'dark gaming background neon green flow field',
-    'elegant marketing banner warm gold radial gradient',
-    'corporate blue dashboard minimal noise',
-    'cyberpunk neon dark background flow particles',
-    'pastel health app light teal gradient',
-    'premium crypto dashboard purple mesh',
-    'retro orange warm noise texture background',
-    'modern ai product dark indigo aurora gradient',
-    'clean white landing page subtle dot grid',
-    'bold social media banner gradient pink orange',
-    'dark music app background curl flow field',
-    'luxury gold dark background radial gradient',
-    'futuristic blue particle flow dark background',
-    'fresh green fitness app light gradient',
-    'dramatic purple dark hero background vignette',
-    'minimal portfolio dark dots pattern',
-    'cozy warm amber gradient landing page',
+    'dark magic blue blur abstract background vignette art',
+    'modern magic purple glow abstract background',
+    'cosmic dark purple nebula glow abstract',
+    'aurora borealis green teal dark glow background',
+    'neon cyan electric dark cyberpunk glow abstract',
+    'dark fintech dashboard premium indigo purple gradient',
+    'vibrant mobile app mesh gradient purple pink abstract',
+    'luxury dark gold radial spotlight hero',
+    'minimal saas landing page clean blue gradient',
+    'dreamy pastel light mesh gradient soft abstract',
+    'dark gaming neon green flow field background',
+    'deep space blue cosmic bokeh dark abstract',
+    'warm sunset mesh gradient orange gold abstract',
+    'premium dark charcoal minimal gradient saas',
+    'ethereal blue white magic dreamy abstract',
+    'bold red orange vibrant mesh gradient banner',
+    'dark music app curl flow purple abstract',
+    'clean white minimal dot grid landing page',
+    'dramatic indigo purple dark hero vignette background',
+    'futuristic blue particle dark flow abstract',
+    'cozy warm amber gradient landing page soft',
+    'modern ai product dark indigo aurora glow',
+    'teal green minimal health app light gradient',
+    'electric pink neon glow dark abstract background',
+    'deep ocean blue dark abstract blur glow',
   ],
 
   // ── COPILOT DELTA COMMANDS ─────────────────────────────────────
@@ -2123,79 +2352,277 @@ const AI = {
     return result
   },
 
+  // ── STYLE RECIPES — rich composite configs ────────────────────
+  STYLES: {
+    // Each style is a function(palette, isDark) → { layers[] }
+
+    'magic-abstract'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#030818' : '#e8f0fe' },
+        { type:'radialGrad', cx:.5, cy:.45, r:.9,
+          stops:[pal.mid+'cc', pal.base+'aa', 'rgba(0,0,0,0)'], blend:'normal', opacity:.9 },
+        { type:'blobGlow', blend:'screen', opacity:.85, blobs:[
+          {x:.3,  y:.3,  r:.5,  color:pal.mid,    alpha:.55},
+          {x:.72, y:.6,  r:.45, color:pal.accent,  alpha:.45},
+          {x:.55, y:.15, r:.35, color:pal.accent2, alpha:.4},
+          {x:.15, y:.7,  r:.3,  color:pal.mid,     alpha:.3},
+        ]},
+        { type:'blobGlow', blend:'screen', opacity:.4, blobs:[
+          {x:.5,  y:.5,  r:.7,  color:pal.mid,   alpha:.25},
+        ]},
+        { type:'grain2',    intensity:.055 },
+        { type:'vignette2', strength:.72 },
+      ]}
+    },
+
+    'dark-gradient'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#060610' : '#f0f4ff' },
+        { type:'radialGrad', cx:.35, cy:.28, r:.85,
+          stops:[pal.mid, pal.accent, 'rgba(0,0,0,0)'], blend:'normal', opacity:.95 },
+        { type:'blobGlow', blend:'screen', opacity:.6, blobs:[
+          {x:.7, y:.75, r:.55, color:pal.accent2, alpha:.5},
+          {x:.2, y:.6,  r:.4,  color:pal.mid,     alpha:.35},
+        ]},
+        { type:'grain2', intensity:.04 },
+        { type:'vignette2', strength:.55 },
+      ]}
+    },
+
+    'aurora-glow'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#03080f' : '#e0f2fe' },
+        { type:'aurora', blend:'screen', opacity:1, bands:[
+          {y:.45, height:.35, color:pal.mid,    alpha:.4,  wave:.1, seed:1.0},
+          {y:.55, height:.28, color:pal.accent, alpha:.32, wave:.12,seed:2.3},
+          {y:.35, height:.22, color:pal.accent2,alpha:.25, wave:.08,seed:4.1},
+        ]},
+        { type:'blobGlow', blend:'screen', opacity:.5, blobs:[
+          {x:.5, y:.5, r:.6, color:pal.mid, alpha:.2},
+        ]},
+        { type:'grain2',    intensity:.04 },
+        { type:'vignette2', strength:.65 },
+      ]}
+    },
+
+    'mesh-vibrant'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#08060f' : '#faf5ff' },
+        { type:'blobGlow', blend:'normal', opacity:1, blobs:[
+          {x:.15, y:.15, r:.55, color:pal.base,   alpha:1},
+          {x:.85, y:.85, r:.55, color:pal.base,   alpha:1},
+        ]},
+        { type:'blobGlow', blend:'screen', opacity:1, blobs:[
+          {x:.2,  y:.2,  r:.6,  color:pal.mid,    alpha:.85},
+          {x:.8,  y:.8,  r:.55, color:pal.accent, alpha:.8},
+          {x:.8,  y:.2,  r:.5,  color:pal.accent2,alpha:.7},
+          {x:.2,  y:.8,  r:.45, color:pal.mid,    alpha:.6},
+          {x:.5,  y:.5,  r:.4,  color:pal.accent, alpha:.4},
+        ]},
+        { type:'grain2',    intensity:.05 },
+        { type:'vignette2', strength:.45 },
+      ]}
+    },
+
+    'cosmic-dark'(pal, dark) {
+      return { layers: [
+        { type:'fill', color:'#020510' },
+        { type:'bokeh2', blend:'screen', opacity:.9,
+          color:pal.mid, count:90, minR:8, maxR:60, maxA:.2 },
+        { type:'bokeh2', blend:'screen', opacity:.6,
+          color:pal.accent, count:50, minR:20, maxR:100, maxA:.1 },
+        { type:'blobGlow', blend:'screen', opacity:.5, blobs:[
+          {x:.5, y:.5, r:.7, color:pal.mid, alpha:.2},
+        ]},
+        { type:'grain2',    intensity:.06 },
+        { type:'vignette2', strength:.7 },
+      ]}
+    },
+
+    'neon-glow'(pal, dark) {
+      return { layers: [
+        { type:'fill', color:'#040408' },
+        { type:'blobGlow', blend:'screen', opacity:1, blobs:[
+          {x:.3,  y:.5,  r:.55, color:pal.mid,    alpha:.9},
+          {x:.75, y:.45, r:.5,  color:pal.accent,  alpha:.8},
+          {x:.5,  y:.8,  r:.4,  color:pal.accent2, alpha:.6},
+        ]},
+        { type:'blobGlow', blend:'screen', opacity:.4, blobs:[
+          {x:.5, y:.5, r:.8, color:pal.mid, alpha:.15},
+        ]},
+        { type:'scanlines2', opacity:.12, spacing:3 },
+        { type:'grain2',     intensity:.04 },
+        { type:'vignette2',  strength:.8 },
+      ]}
+    },
+
+    'minimal-clean'(pal, dark) {
+      const bg = dark ? '#0c0c14' : '#f8fafc'
+      return { layers: [
+        { type:'fill', color: bg },
+        { type:'radialGrad', cx:.5, cy:.4, r:.7,
+          stops:[pal.mid+'40', 'rgba(0,0,0,0)'], blend:'normal', opacity:.8 },
+        { type:'grain2',    intensity:.025 },
+        { type:'vignette2', strength:.3 },
+      ]}
+    },
+
+    'geo-overlay'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#080810' : '#f0f4ff' },
+        { type:'radialGrad', cx:.4, cy:.35, r:.75,
+          stops:[pal.mid, pal.accent, 'rgba(0,0,0,0)'], blend:'normal', opacity:.85 },
+        { type:'geo2', geoType:'hex', size:60, opacity:.1,
+          colorA: dark?'rgba(255,255,255,.12)':'rgba(0,0,0,.08)' },
+        { type:'grain2',    intensity:.04 },
+        { type:'vignette2', strength:.5 },
+      ]}
+    },
+
+    'geo-pattern'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#0b0b10' : '#f8fafc' },
+        { type:'geo2', geoType:'dots', size:40, opacity:.2,
+          colorA: dark ? pal.mid : pal.accent },
+        { type:'radialGrad', cx:.5, cy:.5, r:.85,
+          stops:[pal.mid+'30', 'rgba(0,0,0,0)'], blend:'screen', opacity:.6 },
+        { type:'grain2',    intensity:.03 },
+        { type:'vignette2', strength:.4 },
+      ]}
+    },
+
+    'blur-abstract'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#040a18' : '#e8f4ff' },
+        { type:'blobGlow', blend:'normal', opacity:1, blobs:[
+          {x:.5, y:.5, r:.9, color:dark?'#0a1a3a':'#c7e3ff', alpha:1},
+        ]},
+        { type:'blobGlow', blend:'screen', opacity:.9, blobs:[
+          {x:.25, y:.35, r:.6,  color:pal.mid,    alpha:.7},
+          {x:.75, y:.55, r:.55, color:pal.accent,  alpha:.6},
+          {x:.5,  y:.75, r:.45, color:pal.accent2, alpha:.5},
+          {x:.15, y:.65, r:.35, color:pal.mid,     alpha:.4},
+          {x:.85, y:.25, r:.4,  color:pal.accent,  alpha:.45},
+        ]},
+        { type:'noise2', scale:2.5, octaves:3, colorA:'#000', colorB:pal.mid+'44',
+          blend:'overlay', opacity:.2, seed: Math.random() },
+        { type:'grain2',    intensity:.06 },
+        { type:'vignette2', strength:.75 },
+      ]}
+    },
+
+    'spotlight-hero'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#050508' : '#f0f0f8' },
+        { type:'linearGrad', angle:145,
+          stops:[pal.base, pal.mid+'aa', pal.accent+'55'], blend:'normal', opacity:.9 },
+        { type:'spotlight', x:.4, y:.0, r:.85, color:pal.mid, alpha:.22, blend:'screen', opacity:1 },
+        { type:'spotlight', x:.7, y:.0, r:.7,  color:pal.accent, alpha:.15, blend:'screen', opacity:1 },
+        { type:'grain2',    intensity:.045 },
+        { type:'vignette2', strength:.6 },
+      ]}
+    },
+
+    'flow-abstract'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#050510' : '#f0f4ff' },
+        // use existing flow field engine then overlay
+        { type:'blobGlow', blend:'screen', opacity:.55, blobs:[
+          {x:.5, y:.5, r:.65, color:pal.mid, alpha:.3},
+        ]},
+        { type:'grain2',    intensity:.04 },
+        { type:'vignette2', strength:.55 },
+      ]}
+    },
+
+    'light-soft'(pal, dark) {
+      return { layers: [
+        { type:'fill', color:'#f8f9ff' },
+        { type:'radialGrad', cx:.4, cy:.3, r:.9,
+          stops:[pal.mid+'55', pal.accent+'33', 'rgba(255,255,255,0)'],
+          blend:'normal', opacity:.8 },
+        { type:'blobGlow', blend:'screen', opacity:.5, blobs:[
+          {x:.7, y:.7, r:.55, color:pal.accent, alpha:.3},
+        ]},
+        { type:'grain2',    intensity:.02 },
+        { type:'vignette2', strength:.2 },
+      ]}
+    },
+  },
+
+  // ── STYLE SELECTOR — maps parsed intent to a STYLES key ───────
+  _selectStyle(parsed, isDark) {
+    const text = (parsed.raw || '').toLowerCase()
+    const moods = parsed.moods || []
+
+    // Explicit style keywords
+    if (text.match(/\b(magic|magical|mystic|dreamy|enchant|fantasy)\b/))     return 'magic-abstract'
+    if (text.match(/\b(cosmic|space|galaxy|star|nebula|universe)\b/))        return 'cosmic-dark'
+    if (text.match(/\b(neon|glow|electric|laser|plasma|radioactive)\b/))     return 'neon-glow'
+    if (text.match(/\b(aurora|northern lights?|polar)\b/))                   return 'aurora-glow'
+    if (text.match(/\b(mesh|multicolour|multi.color|liquid|fluid)\b/))       return 'mesh-vibrant'
+    if (text.match(/\b(blur|frosted|bokeh|defocus|soft\s+light|dreamy)\b/))  return 'blur-abstract'
+    if (text.match(/\b(abstract\s+art|abstract\s+bg|abstract\s+back)\b/))    return 'magic-abstract'
+    if (text.match(/\b(abstract)\b/))                                        return 'blur-abstract'
+    if (text.match(/\b(hero|landing|showcase|splash|header)\b/))             return 'spotlight-hero'
+    if (text.match(/\b(pattern|geometric|hexagon|dots|grid)\b/))             return 'geo-overlay'
+    if (text.match(/\b(minimal|clean|simple|bare|plain)\b/))                 return 'minimal-clean'
+    if (text.match(/\b(flow|particle|stream|wave|curl)\b/))                  return 'flow-abstract'
+
+    // Use-case based
+    if (parsed.useCase === 'gaming')    return 'neon-glow'
+    if (parsed.useCase === 'crypto')    return 'dark-gradient'
+    if (parsed.useCase === 'music')     return 'blur-abstract'
+    if (parsed.useCase === 'portfolio') return 'spotlight-hero'
+
+    // Mood based
+    if (moods.includes('vibrant') || moods.includes('playful')) return 'mesh-vibrant'
+    if (moods.includes('neon'))    return 'neon-glow'
+    if (moods.includes('dreamy'))  return 'magic-abstract'
+    if (moods.includes('minimal') || moods.includes('clean'))   return 'minimal-clean'
+    if (moods.includes('premium') || moods.includes('luxury'))  return 'dark-gradient'
+    if (moods.includes('elegant'))  return 'spotlight-hero'
+    if (moods.includes('dramatic')) return 'dark-gradient'
+
+    // Dark/light defaults
+    if (isDark) return 'dark-gradient'
+    return 'light-soft'
+  },
+
   // ── RESOLVE PARAMS ────────────────────────────────────────────
   resolve(parsed) {
     const isDark = parsed.dark !== null ? parsed.dark
       : parsed.moods.some(m => AI.MOODS[m]?.darkMode !== false)
       || ['dashboard','mobile','fintech','gaming','crypto','ai','music','portfolio'].includes(parsed.useCase)
 
-    // Collect mood modifiers
-    let opMul = 0.85, noiseMul = 0.5, vignette = 0
-    for (const m of parsed.moods) {
-      const mod = AI.MOODS[m] || {}
-      if (mod.opMul !== undefined) opMul = mod.opMul
-      if (mod.noiseMul !== undefined) noiseMul = mod.noiseMul
-      if (mod.vignette !== undefined) vignette = mod.vignette
-    }
-
-    // Pick colors
     const palette = AI._buildPalette(parsed, isDark)
+    const styleKey = AI._selectStyle(parsed, isDark)
+    const styleFn  = AI.STYLES[styleKey] || AI.STYLES['dark-gradient']
+    const composite = styleFn(palette, isDark)
 
-    const p = {}
-
-    if (parsed.generator === 'gradient') {
-      const type = parsed.gradType || 'radial'
-      let stops
-      if (parsed.colorCombo) stops = [...parsed.colorCombo, isDark ? '#050510' : '#f0f4ff']
-      else stops = palette.stops
-      if (type === 'aurora') stops = [isDark ? '#050a14' : '#e0f2fe', palette.mid, palette.accent, palette.accent2]
-      if (type === 'mesh')   stops = [palette.base, palette.mid, palette.accent, palette.accent2]
-      p.gradient = {
-        type, stops,
-        angle: AI._angleFromMood(parsed),
-        cx: 0.35, cy: 0.28, radX: 0.5, radY: 0.5,
-        opacity: opMul,
-      }
-    }
-
-    if (parsed.generator === 'geometric') {
-      const type = parsed.geoType || 'hex'
-      p.geometric = {
-        type, size: 44, gap: 2, rotation: 0, lineW: 1.2,
-        colorA: palette.mid, colorB: isDark ? '#0b0b10' : '#f8fafc',
-        opacity: Math.min(opMul * 0.3, 0.35), filled: false,
-      }
-    }
-
-    if (parsed.generator === 'noise') {
-      const type = parsed.noiseType || 'fbm'
-      p.noise = {
-        type, scale: 3.5, octaves: 5, turbulence: 0.5,
-        colorA: isDark ? '#0d0d20' : '#e0e8ff',
-        colorB: palette.mid, colorC: palette.accent,
-        opacity: opMul, seed: Math.random(),
-      }
-    }
-
-    if (parsed.generator === 'flowfield') {
-      const type = parsed.flowType || 'curl'
-      p.flowfield = {
-        type, count: 2000, stepLen: 3, lineW: 1,
-        speed: 0.8, opacity: opMul * 0.75,
+    // For flow/noise prompts, fall back to existing generators but still wrap
+    if (parsed.generator === 'flowfield' && !AI._selectStyle(parsed, isDark).includes('flow')) {
+      // override with flow-abstract composite + actual flow render
+      S.params.flowfield = {
+        type: parsed.flowType || 'curl', count: 2200, stepLen: 3, lineW: 1,
+        speed: 0.8, opacity: 0.75,
         colorA: palette.mid, colorB: palette.accent,
         bg: isDark ? '#050510' : '#f0f4ff', seed: Math.random(),
       }
+      return { generator: 'flowfield', params: {}, composite: null }
     }
 
-    if (parsed.generator === 'material') {
-      p.material = {
-        type: 'glassmorphism', blur: 12, opacity: 0.12,
-        color: isDark ? '#ffffff' : '#000000',
-        tint: palette.mid, grain: 0.06,
+    if (parsed.generator === 'noise' && !parsed.moods.length) {
+      S.params.noise = {
+        type: parsed.noiseType || 'fbm', scale: 3.5, octaves: 5, turbulence: 0.5,
+        colorA: isDark ? '#0d0d20' : '#e0e8ff',
+        colorB: palette.mid, colorC: palette.accent,
+        opacity: 1, seed: Math.random(),
       }
+      return { generator: 'noise', params: {}, composite: null }
     }
 
-    return { generator: parsed.generator, params: p }
+    return { generator: 'composite', composite, styleKey, palette }
   },
 
   // ── PALETTE BUILDER ────────────────────────────────────────────
@@ -2235,16 +2662,42 @@ const AI = {
 
   // ── APPLY ─────────────────────────────────────────────────────
   apply(result) {
-    S.gen = result.generator
-    Object.assign(S.params[result.generator], result.params[result.generator] || {})
-    // Sync UI
-    selectGen(S.gen)
-    render(true)
+    if (result.generator === 'composite') {
+      // Composite mode — set layers, render directly
+      S.composite = result.composite
+      S._lastPalette = result.palette
+      S._lastStyle   = result.styleKey
+      render(true)
+    } else {
+      // Single-generator mode
+      S.composite = null
+      S.gen = result.generator
+      if (result.params && result.params[result.generator]) {
+        Object.assign(S.params[result.generator], result.params[result.generator])
+      }
+      selectGen(S.gen)
+      render(true)
+    }
     updateSuggestions(result)
   },
 
   // ── COPILOT DELTA HELPERS ─────────────────────────────────────
   _shiftBrightness(delta) {
+    if (S.composite) {
+      // shift the fill layer's color in composite
+      const fillLayer = S.composite.layers.find(l => l.type === 'fill')
+      if (fillLayer) {
+        const {r,g,b} = hex2rgb(fillLayer.color)
+        const d = Math.round(delta * 255)
+        fillLayer.color = rgb2hex(clamp(r+d,0,255),clamp(g+d,0,255),clamp(b+d,0,255))
+      }
+      // shift vignette strength
+      const vig = S.composite.layers.find(l => l.type === 'vignette2')
+      if (vig && delta < 0) vig.strength = clamp(vig.strength + 0.08)
+      if (vig && delta > 0) vig.strength = clamp(vig.strength - 0.05)
+      render(true)
+      return
+    }
     const p = S.params[S.gen]
     const shift = c => {
       const {r,g,b} = hex2rgb(c)
@@ -2381,21 +2834,36 @@ function aiShowResult(icon, text) {
 }
 
 function updateSuggestions(result) {
-  // After generation, show contextual copilot chips
-  const chips = [
-    { label:'💎 Premium', copilot:'more premium' },
+  const styleKey = result?.styleKey || ''
+  // Contextual follow-up prompts based on current style
+  const followUps = {
+    'magic-abstract':  ['dark ethereal magic purple mist abstract','cosmic blue magic glow abstract art','emerald green magic abstract dreamy'],
+    'blur-abstract':   ['deep blue blur abstract dark vignette','warm orange blur abstract bokeh','purple pink blur dreamy soft abstract'],
+    'mesh-vibrant':    ['vibrant coral orange mesh gradient','electric blue green mesh vibrant','warm sunset mesh gradient orange gold'],
+    'neon-glow':       ['neon cyan dark cyberpunk glow','neon pink purple electric dark','neon yellow green gaming dark'],
+    'aurora-glow':     ['aurora green teal northern lights dark','aurora blue purple cosmic glow','aurora pink violet dark sky'],
+    'cosmic-dark':     ['cosmic purple nebula dark space','cosmic blue gold star field dark','deep space red cosmic dark'],
+    'dark-gradient':   ['premium dark indigo radial gradient','dark navy blue corporate gradient','dark charcoal minimal gradient'],
+    'spotlight-hero':  ['spotlight blue hero dark premium','warm gold spotlight hero landing','purple spotlight dramatic hero'],
+  }
+  const prompts = followUps[styleKey] || [
+    'magic blue abstract glow vignette',
+    'dark premium mesh gradient',
+    'cosmic purple nebula dark',
+  ]
+  const copilots = [
     { label:'🌑 Darker',  copilot:'make it darker' },
-    { label:'🌕 Lighter', copilot:'make it lighter' },
+    { label:'💎 Premium', copilot:'more premium' },
     { label:'🔇 Subtle',  copilot:'more subtle' },
-    { label:'🔊 Bold',    copilot:'more bold' },
     { label:'🌊 Depth',   copilot:'add depth' },
     { label:'🌡 Warmer',  copilot:'warmer' },
     { label:'❄ Cooler',   copilot:'cooler' },
   ]
   const container = document.getElementById('ai-suggestions')
-  container.innerHTML = chips.map(c =>
-    `<span class="ai-chip cop" data-copilot="${c.copilot}">${c.label}</span>`
-  ).join('')
+  container.innerHTML = [
+    ...prompts.slice(0,3).map(p => `<span class="ai-chip" data-prompt="${p}">✦ ${p.slice(0,28)}…</span>`),
+    ...copilots.map(c => `<span class="ai-chip cop" data-copilot="${c.copilot}">${c.label}</span>`),
+  ].join('')
   bindChips()
 }
 
