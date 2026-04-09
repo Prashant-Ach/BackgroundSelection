@@ -1,0 +1,17 @@
+{
+  "name": "texturegen",
+  "version": "1.0.0",
+  "description": "Generate wallpapers, textures, and banners programmatically",
+  "main": "src/index.js",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node server.js",
+    "example": "node examples/basic.js",
+    "example:presets": "node examples/presets.js"
+  },
+  "dependencies": {
+    "@napi-rs/canvas": "^0.1.53",
+    "express": "^4.19.2",
+    "sharp": "^0.33.3"
+  }
+}

@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>TextureGen Studio</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0 }
+
+    :root {
+      --bg:       #0d0d12;
+      --surface:  #15151e;
+      --border:   #26263a;
+      --accent:   #6366f1;
+      --accent2:  #ec4899;
+      --text:     #e2e2f0;
+      --muted:    #6b6b8a;
+      --radius:   10px;
+    }
+
+    body {
+      background: var(--bg);
+      color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      font-size: 14px;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* ── Header ── */
+    header {
+      padding: 16px 24px;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    header .logo {
+      font-size: 18px;
+      font-weight: 700;
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+    }
+    header .sub { color: var(--muted); font-size: 12px; }
+
+    /* ── Layout ── */
+    .layout {
+      display: grid;
+      grid-template-columns: 320px 1fr;
+      flex: 1;
+      overflow: hidden;
+    }
+
+    /* ── Sidebar ── */
+    .sidebar {
+      border-right: 1px solid var(--border);
+      overflow-y: auto;
+      padding: 20px 16px;
+      display: flex;
+      flex-direction: column;
+      gap: 20px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: .08em;
+      color: var(--muted);
+      margin-bottom: 10px;
+    }
+
+    /* Preset grid */
+    .preset-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 6px;
+    }
+    .preset-btn {
+      background: var(--surface);
+      border: 1.5px solid var(--border);
+      border-radius: 7px;
+      color: var(--text);
+      font-size: 11px;
+      padding: 6px 4px;
+      cursor: pointer;
+      transition: all .15s;
+      text-align: center;
+      line-height: 1.3;
+    }
+    .preset-btn:hover  { border-color: var(--accent); color: var(--accent); }
+    .preset-btn.active { border-color: var(--accent); background: #6366f115; color: var(--accent); }
+
+    /* Controls */
+    .control { display: flex; flex-direction: column; gap: 5px; }
+    .control label { font-size: 12px; color: var(--muted); }
+
+    input[type=range] {
+      width: 100%;
+      accent-color: var(--accent);
+    }
+    select, input[type=number] {
+      width: 100%;
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      color: var(--text);
+      padding: 7px 10px;
+      font-size: 13px;
+      outline: none;
+    }
+    select:focus, input[type=number]:focus { border-color: var(--accent); }
+
+    .row { display: flex; gap: 8px; }
+    .row .control { flex: 1; }
+
+    /* Sliders row */
+    .slider-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .slider-row input[type=range] { flex: 1; }
+    .slider-row .val {
+      font-size: 12px;
+      color: var(--muted);
+      min-width: 32px;
+      text-align: right;
+    }
+
+    /* Layer pills */
+    .layer-list { display: flex; flex-direction: column; gap: 6px; }
+    .layer-pill {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: 7px;
+      padding: 8px 10px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+    }
+    .layer-pill .tag {
+      background: var(--accent);
+      color: #fff;
+      border-radius: 4px;
+      padding: 2px 6px;
+      font-size: 10px;
+      font-weight: 600;
+      min-width: 54px;
+      text-align: center;
+    }
+    .layer-pill .tag.noise    { background: #0ea5e9; }
+    .layer-pill .tag.pattern  { background: #10b981; }
+    .layer-pill .tag.effect   { background: #f59e0b; }
+    .layer-pill .del-btn {
+      margin-left: auto;
+      background: none;
+      border: none;
+      color: var(--muted);
+      cursor: pointer;
+      font-size: 15px;
+      line-height: 1;
+    }
+    .layer-pill .del-btn:hover { color: var(--accent2); }
+
+    /* Add layer panel */
+    .add-layer {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+    .add-layer-row { display: flex; gap: 6px; }
+    .add-layer-row select { flex: 1; }
+
+    /* Buttons */
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      gap: 6px;
+      padding: 9px 16px;
+      border-radius: 8px;
+      border: none;
+      cursor: pointer;
+      font-size: 13px;
+      font-weight: 600;
+      transition: all .15s;
+    }
+    .btn-primary {
+      background: linear-gradient(135deg, var(--accent), var(--accent2));
+      color: #fff;
+      width: 100%;
+    }
+    .btn-primary:hover { opacity: .88; }
+    .btn-primary:active { transform: scale(.97); }
+    .btn-primary:disabled { opacity: .45; cursor: not-allowed; }
+
+    .btn-outline {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      color: var(--text);
+    }
+    .btn-outline:hover { border-color: var(--accent); color: var(--accent); }
+
+    /* ── Canvas area ── */
+    .canvas-area {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 32px;
+      gap: 16px;
+      background: repeating-conic-gradient(#1a1a26 0% 25%, var(--bg) 0% 50%) 0 0 / 24px 24px;
+      position: relative;
+    }
+
+    #preview-img {
+      max-width: 100%;
+      max-height: calc(100vh - 220px);
+      border-radius: 10px;
+      box-shadow: 0 24px 80px #00000088;
+      display: block;
+      border: 1px solid var(--border);
+    }
+
+    .canvas-placeholder {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 12px;
+      color: var(--muted);
+    }
+    .canvas-placeholder .icon { font-size: 48px; }
+
+    .toolbar {
+      display: flex;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: center;
+    }
+
+    /* Spinner */
+    .spinner {
+      width: 20px; height: 20px;
+      border: 2px solid #fff4;
+      border-top-color: #fff;
+      border-radius: 50%;
+      animation: spin .6s linear infinite;
+      display: none;
+    }
+    @keyframes spin { to { transform: rotate(360deg) } }
+
+    .generating .spinner { display: block; }
+    .generating .gen-label { display: none; }
+
+    /* Toast */
+    #toast {
+      position: fixed;
+      bottom: 24px;
+      left: 50%;
+      transform: translateX(-50%) translateY(60px);
+      background: #1e1e2e;
+      border: 1px solid var(--border);
+      color: var(--text);
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 13px;
+      transition: transform .25s;
+      z-index: 99;
+      white-space: nowrap;
+    }
+    #toast.show { transform: translateX(-50%) translateY(0); }
+  </style>
+</head>
+<body>
+
+<header>
+  <div class="logo">⬡ TextureGen Studio</div>
+  <div class="sub">Wallpaper &amp; banner generator</div>
+</header>
+
+<div class="layout">
+
+  <!-- ── Sidebar ── -->
+  <aside class="sidebar">
+
+    <!-- Canvas Size -->
+    <div>
+      <div class="section-title">Canvas Size</div>
+      <div class="row">
+        <div class="control">
+          <label>Width</label>
+          <input type="number" id="width" value="1200" min="100" max="4096" step="1"/>
+        </div>
+        <div class="control">
+          <label>Height</label>
+          <input type="number" id="height" value="630" min="100" max="4096" step="1"/>
+        </div>
+      </div>
+      <div class="control" style="margin-top:8px">
+        <label>Quick size</label>
+        <select id="size-preset">
+          <option value="">— custom —</option>
+          <option value="1200,630">OG Image (1200×630)</option>
+          <option value="1024,500">App Store (1024×500)</option>
+          <option value="1500,500">Twitter Header (1500×500)</option>
+          <option value="1584,396">LinkedIn Banner (1584×396)</option>
+          <option value="820,312">Facebook Cover (820×312)</option>
+          <option value="1920,1080">HD Wallpaper (1920×1080)</option>
+          <option value="1080,1920">Mobile Wallpaper (1080×1920)</option>
+          <option value="3840,2160">4K Wallpaper (3840×2160)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Presets -->
+    <div>
+      <div class="section-title">Presets</div>
+      <div class="preset-grid" id="preset-grid">
+        <!-- filled by JS -->
+      </div>
+    </div>
+
+    <!-- Layers -->
+    <div>
+      <div class="section-title">Layers</div>
+      <div class="layer-list" id="layer-list">
+        <div style="color:var(--muted);font-size:12px">No custom layers. Pick a preset or add below.</div>
+      </div>
+    </div>
+
+    <!-- Add Layer -->
+    <div>
+      <div class="section-title">Add Layer</div>
+      <div class="add-layer">
+        <div class="add-layer-row">
+          <select id="layer-type">
+            <optgroup label="Fill">
+              <option value="gradient-linear">Gradient — Linear</option>
+              <option value="gradient-radial">Gradient — Radial</option>
+              <option value="gradient-conic">Gradient — Conic</option>
+            </optgroup>
+            <optgroup label="Noise">
+              <option value="noise-perlin">Noise — Perlin</option>
+              <option value="noise-fbm">Noise — fBm (fractal)</option>
+              <option value="noise-voronoi">Noise — Voronoi</option>
+              <option value="noise-turbulence">Noise — Turbulence</option>
+              <option value="noise-ridged">Noise — Ridged</option>
+            </optgroup>
+            <optgroup label="Pattern">
+              <option value="pattern-grid">Pattern — Grid</option>
+              <option value="pattern-hex">Pattern — Hexagon</option>
+              <option value="pattern-triangles">Pattern — Triangles</option>
+              <option value="pattern-dots">Pattern — Dots</option>
+              <option value="pattern-lines">Pattern — Lines</option>
+              <option value="pattern-cross-hatch">Pattern — Cross-hatch</option>
+              <option value="pattern-diamonds">Pattern — Diamonds</option>
+              <option value="pattern-truchet">Pattern — Truchet</option>
+            </optgroup>
+            <optgroup label="Effect">
+              <option value="grain">Effect — Grain</option>
+              <option value="vignette">Effect — Vignette</option>
+              <option value="glow">Effect — Glow</option>
+              <option value="duotone">Effect — Duotone</option>
+              <option value="scanlines">Effect — Scanlines</option>
+            </optgroup>
+          </select>
+          <button class="btn btn-outline" id="add-layer-btn">+ Add</button>
+        </div>
+        <!-- Dynamic params -->
+        <div id="layer-params"></div>
+      </div>
+    </div>
+
+    <!-- Export format -->
+    <div>
+      <div class="section-title">Export</div>
+      <div class="row">
+        <div class="control">
+          <label>Format</label>
+          <select id="format">
+            <option value="png">PNG</option>
+            <option value="jpg">JPG</option>
+            <option value="webp">WebP</option>
+          </select>
+        </div>
+        <div class="control">
+          <label>Quality</label>
+          <div class="slider-row">
+            <input type="range" id="quality" min="50" max="100" value="92"/>
+            <span class="val" id="quality-val">92</span>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Generate -->
+    <button class="btn btn-primary" id="gen-btn">
+      <span class="spinner"></span>
+      <span class="gen-label">⚡ Generate</span>
+    </button>
+
+  </aside>
+
+  <!-- ── Canvas Preview ── -->
+  <main class="canvas-area" id="canvas-area">
+    <div class="canvas-placeholder" id="placeholder">
+      <div class="icon">🎨</div>
+      <div>Pick a preset or configure layers, then click <strong>Generate</strong></div>
+    </div>
+    <img id="preview-img" style="display:none" alt="generated texture"/>
+    <div class="toolbar" id="toolbar" style="display:none">
+      <button class="btn btn-outline" id="download-btn">⬇ Download</button>
+      <button class="btn btn-outline" id="copy-css-btn">📋 Copy CSS</button>
+    </div>
+  </main>
+</div>
+
+<div id="toast"></div>
+
+<script>
+/* ── State ─────────────────────────────────────────────────── */
+let activePreset  = null
+let customLayers  = []
+let lastImageBlob = null
+let cssText       = ''
+
+/* ── Boot ───────────────────────────────────────────────────── */
+async function boot() {
+  const { presets } = await fetch('/api/presets').then(r => r.json())
+  const grid = document.getElementById('preset-grid')
+  presets.forEach(name => {
+    const btn = document.createElement('button')
+    btn.className  = 'preset-btn'
+    btn.textContent = name.replace(/-/g,' ')
+    btn.dataset.name = name
+    btn.addEventListener('click', () => selectPreset(name, btn))
+    grid.appendChild(btn)
+  })
+  renderLayers()
+  buildLayerParams()
+}
+
+/* ── Preset ─────────────────────────────────────────────────── */
+function selectPreset(name, btn) {
+  activePreset = activePreset === name ? null : name
+  document.querySelectorAll('.preset-btn').forEach(b => b.classList.remove('active'))
+  if (activePreset) btn.classList.add('active')
+}
+
+/* ── Layers ─────────────────────────────────────────────────── */
+function renderLayers() {
+  const list = document.getElementById('layer-list')
+  list.innerHTML = ''
+  if (customLayers.length === 0) {
+    list.innerHTML = '<div style="color:var(--muted);font-size:12px">No custom layers.</div>'
+    return
+  }
+  customLayers.forEach((layer, i) => {
+    const pill = document.createElement('div')
+    pill.className = 'layer-pill'
+    const [kind, sub] = layer.type.split('-')
+    const tagClass = kind === 'noise' ? 'noise' : kind === 'pattern' ? 'pattern' : kind === 'gradient' ? '' : 'effect'
+    pill.innerHTML = `
+      <span class="tag ${tagClass}">${(sub || kind).toUpperCase()}</span>
+      <span>${_layerSummary(layer)}</span>
+      <button class="del-btn" data-i="${i}">×</button>`
+    list.querySelector
+    list.appendChild(pill)
+  })
+  list.querySelectorAll('.del-btn').forEach(btn =>
+    btn.addEventListener('click', () => { customLayers.splice(+btn.dataset.i, 1); renderLayers() })
+  )
+}
+
+function _layerSummary(layer) {
+  const o = layer.options || {}
+  if (layer.type.startsWith('gradient')) return `angle:${o.angle||0}° op:${o.opacity||1}`
+  if (layer.type.startsWith('noise'))    return `scale:${o.scale||4} op:${o.opacity||0.5}`
+  if (layer.type.startsWith('pattern'))  return `size:${o.size||40} op:${o.opacity||0.15}`
+  if (layer.type === 'grain')            return `intensity:${o.intensity||0.1}`
+  if (layer.type === 'vignette')         return `strength:${o.strength||0.6}`
+  if (layer.type === 'glow')             return `x:${o.x||0.5} y:${o.y||0.5}`
+  return ''
+}
+
+/* ── Dynamic param panels ────────────────────────────────────── */
+const PARAM_DEFS = {
+  'gradient-linear': [
+    { id:'stops0', label:'Color A', type:'color', default:'#6366f1' },
+    { id:'stops1', label:'Color B', type:'color', default:'#ec4899' },
+    { id:'angle',  label:'Angle',   type:'range', min:0, max:360, default:135 },
+    { id:'opacity',label:'Opacity', type:'range', min:0, max:1, step:.05, default:1 },
+  ],
+  'gradient-radial': [
+    { id:'stops0',  label:'Color inner', type:'color', default:'#6366f1' },
+    { id:'stops1',  label:'Color outer', type:'color', default:'#000000' },
+    { id:'centerX', label:'Center X',    type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'centerY', label:'Center Y',    type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'opacity', label:'Opacity',     type:'range', min:0, max:1, step:.05, default:1 },
+  ],
+  'gradient-conic': [
+    { id:'stops0', label:'Color A', type:'color', default:'#6366f1' },
+    { id:'stops1', label:'Color B', type:'color', default:'#ec4899' },
+    { id:'stops2', label:'Color C', type:'color', default:'#06b6d4' },
+    { id:'centerX',label:'Center X', type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'centerY',label:'Center Y', type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'opacity',label:'Opacity',  type:'range', min:0, max:1, step:.05, default:1 },
+  ],
+  'noise-perlin':     noiseParams(),
+  'noise-fbm':        noiseParams({ octaves: true }),
+  'noise-voronoi':    noiseParams(),
+  'noise-turbulence': noiseParams({ octaves: true }),
+  'noise-ridged':     noiseParams(),
+  'pattern-grid':     patternParams(),
+  'pattern-hex':      patternParams(),
+  'pattern-triangles':patternParams(),
+  'pattern-dots':     patternParams(),
+  'pattern-lines':    patternParams({ angle: true }),
+  'pattern-cross-hatch': patternParams(),
+  'pattern-diamonds': patternParams(),
+  'pattern-truchet':  patternParams(),
+  grain:    [{ id:'intensity', label:'Intensity', type:'range', min:0, max:.5, step:.01, default:.1 }],
+  vignette: [
+    { id:'strength', label:'Strength', type:'range', min:0, max:1, step:.05, default:.6 },
+    { id:'color',    label:'Color',    type:'color', default:'#000000' },
+  ],
+  glow: [
+    { id:'color',     label:'Color',    type:'color', default:'#ffffff' },
+    { id:'x',         label:'X',        type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'y',         label:'Y',        type:'range', min:0, max:1, step:.05, default:.5 },
+    { id:'intensity', label:'Intensity',type:'range', min:0, max:1, step:.05, default:.4 },
+    { id:'radius',    label:'Radius',   type:'range', min:.1, max:1.5, step:.05, default:.5 },
+  ],
+  duotone: [
+    { id:'shadowColor',    label:'Shadow color',    type:'color', default:'#1a1a2e' },
+    { id:'highlightColor', label:'Highlight color', type:'color', default:'#f687b3' },
+  ],
+  scanlines: [
+    { id:'spacing', label:'Spacing', type:'range', min:2, max:12, step:1, default:4 },
+    { id:'opacity', label:'Opacity', type:'range', min:0, max:.5, step:.01, default:.12 },
+  ],
+}
+
+function noiseParams(extra = {}) {
+  const p = [
+    { id:'scale',   label:'Scale',   type:'range', min:.5, max:12, step:.5, default:4 },
+    { id:'opacity', label:'Opacity', type:'range', min:0,  max:1,  step:.05, default:.5 },
+    { id:'colorA',  label:'Color A', type:'color', default:'#ffffff' },
+    { id:'colorB',  label:'Color B', type:'color', default:'#000000' },
+  ]
+  if (extra.octaves) p.push({ id:'octaves', label:'Octaves', type:'range', min:1, max:8, step:1, default:4 })
+  return p
+}
+
+function patternParams(extra = {}) {
+  const p = [
+    { id:'size',      label:'Size',    type:'range', min:10, max:120, step:2,   default:40 },
+    { id:'opacity',   label:'Opacity', type:'range', min:0,  max:.8,  step:.02, default:.15 },
+    { id:'color',     label:'Color',   type:'color', default:'#ffffff' },
+    { id:'lineWidth', label:'Line W',  type:'range', min:.5, max:4,   step:.5,  default:1 },
+  ]
+  if (extra.angle) p.push({ id:'angle', label:'Angle', type:'range', min:0, max:180, step:5, default:45 })
+  return p
+}
+
+function buildLayerParams() {
+  const sel    = document.getElementById('layer-type')
+  const target = document.getElementById('layer-params')
+
+  function render() {
+    const defs = PARAM_DEFS[sel.value] || []
+    target.innerHTML = ''
+    defs.forEach(p => {
+      const wrap = document.createElement('div')
+      wrap.className = 'control'
+      if (p.type === 'color') {
+        wrap.innerHTML = `<label>${p.label}</label>
+          <div style="display:flex;gap:6px;align-items:center">
+            <input type="color" id="p_${p.id}" value="${p.default}" style="width:40px;height:32px;border:none;background:none;cursor:pointer;padding:0"/>
+            <input type="text"  id="p_${p.id}_hex" value="${p.default}" style="flex:1;background:var(--surface);border:1px solid var(--border);border-radius:6px;color:var(--text);padding:6px 8px;font-size:12px"/>
+          </div>`
+        target.appendChild(wrap)
+        const cp  = wrap.querySelector(`#p_${p.id}`)
+        const txt = wrap.querySelector(`#p_${p.id}_hex`)
+        cp.addEventListener('input',  () => txt.value = cp.value)
+        txt.addEventListener('input', () => { if(/^#[0-9a-f]{6}$/i.test(txt.value)) cp.value = txt.value })
+      } else {
+        wrap.innerHTML = `<label>${p.label}</label>
+          <div class="slider-row">
+            <input type="range" id="p_${p.id}" min="${p.min}" max="${p.max}" step="${p.step||1}" value="${p.default}"/>
+            <span class="val" id="p_${p.id}_v">${p.default}</span>
+          </div>`
+        target.appendChild(wrap)
+        const inp = wrap.querySelector(`#p_${p.id}`)
+        const val = wrap.querySelector(`#p_${p.id}_v`)
+        inp.addEventListener('input', () => val.textContent = inp.value)
+      }
+    })
+  }
+
+  sel.addEventListener('change', render)
+  render()
+}
+
+document.getElementById('add-layer-btn').addEventListener('click', () => {
+  const sel  = document.getElementById('layer-type')
+  const type = sel.value
+  const defs = PARAM_DEFS[type] || []
+  const opts = {}
+
+  defs.forEach(p => {
+    const el = document.getElementById(`p_${p.id}`)
+    if (!el) return
+    const v = p.type === 'range' ? parseFloat(el.value) : el.value
+    // special: aggregate stops
+    if (p.id.startsWith('stops')) {
+      if (!opts.stops) opts.stops = []
+      opts.stops.push(el.value)
+    } else if (p.id === 'colorA') {
+      opts.color  = el.value
+    } else if (p.id === 'colorB') {
+      opts.colorB = el.value
+    } else {
+      opts[p.id] = v
+    }
+  })
+
+  // convert type key → layer format
+  const [kind, sub] = type.split('-')
+  let layerType = type
+  if (kind === 'gradient') {
+    layerType = 'gradient'
+    opts.type = sub
+  } else if (kind === 'noise') {
+    layerType = 'noise'
+    opts.type = sub
+  } else if (kind === 'pattern') {
+    layerType = 'pattern'
+    opts.type = sub
+  }
+
+  customLayers.push({ type: layerType, options: opts })
+  renderLayers()
+  toast('Layer added')
+})
+
+/* ── Size preset ─────────────────────────────────────────────── */
+document.getElementById('size-preset').addEventListener('change', function() {
+  if (!this.value) return
+  const [w, h] = this.value.split(',')
+  document.getElementById('width').value  = w
+  document.getElementById('height').value = h
+})
+
+/* ── Quality slider ──────────────────────────────────────────── */
+document.getElementById('quality').addEventListener('input', function() {
+  document.getElementById('quality-val').textContent = this.value
+})
+
+/* ── Generate ────────────────────────────────────────────────── */
+document.getElementById('gen-btn').addEventListener('click', generate)
+
+async function generate() {
+  const btn = document.getElementById('gen-btn')
+  btn.classList.add('generating')
+  btn.disabled = true
+
+  const body = {
+    preset:  activePreset,
+    layers:  customLayers,
+    width:   +document.getElementById('width').value,
+    height:  +document.getElementById('height').value,
+    format:  document.getElementById('format').value,
+    quality: +document.getElementById('quality').value,
+  }
+
+  try {
+    const res = await fetch('/api/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body),
+    })
+    if (!res.ok) {
+      const e = await res.json()
+      throw new Error(e.error || 'Generation failed')
+    }
+
+    const blob    = await res.blob()
+    lastImageBlob = blob
+    const url     = URL.createObjectURL(blob)
+
+    const img = document.getElementById('preview-img')
+    img.onload = () => URL.revokeObjectURL(url)
+    img.src = url
+    img.style.display = 'block'
+    document.getElementById('placeholder').style.display = 'none'
+    document.getElementById('toolbar').style.display = 'flex'
+
+    toast('Generated!')
+  } catch (err) {
+    toast('Error: ' + err.message)
+  } finally {
+    btn.classList.remove('generating')
+    btn.disabled = false
+  }
+}
+
+/* ── Download ────────────────────────────────────────────────── */
+document.getElementById('download-btn').addEventListener('click', () => {
+  if (!lastImageBlob) return
+  const fmt  = document.getElementById('format').value
+  const url  = URL.createObjectURL(lastImageBlob)
+  const a    = document.createElement('a')
+  a.href     = url
+  a.download = `texture.${fmt}`
+  a.click()
+  URL.revokeObjectURL(url)
+})
+
+/* ── Copy CSS ────────────────────────────────────────────────── */
+document.getElementById('copy-css-btn').addEventListener('click', async () => {
+  if (!customLayers.length && !activePreset) return
+  const layers = customLayers.filter(l => l.type === 'gradient')
+  if (!layers.length) { toast('No gradient layers to export as CSS'); return }
+
+  const parts = layers.map(l => {
+    const o = l.options || {}
+    const stops = (o.stops || []).map((c,i,a) =>
+      `${c} ${Math.round(i/(Math.max(a.length-1,1))*100)}%`
+    ).join(', ')
+    if (o.type === 'radial') return `radial-gradient(circle at ${Math.round((o.centerX||.5)*100)}% ${Math.round((o.centerY||.5)*100)}%, ${stops})`
+    return `linear-gradient(${o.angle||135}deg, ${stops})`
+  })
+  const css = `background: ${parts.join(',\n  ')};`
+  await navigator.clipboard.writeText(css)
+  toast('CSS copied to clipboard!')
+})
+
+/* ── Toast ───────────────────────────────────────────────────── */
+let _toastTimer
+function toast(msg) {
+  const el = document.getElementById('toast')
+  el.textContent = msg
+  el.classList.add('show')
+  clearTimeout(_toastTimer)
+  _toastTimer = setTimeout(() => el.classList.remove('show'), 2200)
+}
+
+boot()
+</script>
+</body>
+</html>
