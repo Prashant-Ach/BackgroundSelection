@@ -1140,11 +1140,20 @@ function updateA11y(){
 // ═══════════════════════════════════════════════════════════
 function updateCSSOutput(){
   const el = document.getElementById('css-output')
-  let css = '/* no CSS for this generator — use PNG export */'
+  const wrap = el.closest?.('div') || el.parentElement
+  if(S.composite){
+    // In AI composite mode show the fill color as a base CSS hint
+    const fill = S.composite.layers?.find(l=>l.type==='fill')
+    el.textContent = fill
+      ? `background-color: ${fill.color};\n/* AI composite — export as PNG for full fidelity */`
+      : '/* AI composite — export as PNG */'
+    return
+  }
+  let css = '/* export as PNG for this generator */'
   if(S.gen==='gradient') css = gradientToCSS(S.params.gradient)
   else if(S.gen==='geometric'){
     const {colorA,colorB} = S.params.geometric
-    css = `background-color: ${colorB};\n/* pattern overlay: use SVG export */`
+    css = `background-color: ${colorB};\n/* pattern: use SVG export */`
   }
   el.textContent = css
 }
@@ -1225,9 +1234,11 @@ function _randColor(){ return '#'+[0,0,0].map(()=>Math.floor(Math.random()*256).
 // SHUFFLE
 // ═══════════════════════════════════════════════════════════
 function shuffle(){
+  S.composite = null   // always clear composite so generator controls work
   S.params[S.gen] = _randomVariation()
   buildControls()
   render(true)
+  _updateButtonVisibility(S.gen)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2009,6 +2020,9 @@ function showTilePreview(){
 // SELECT GEN
 // ═══════════════════════════════════════════════════════════
 function selectGen(gen){
+  // CRITICAL: clear composite so manual generator clicks always work
+  if (!['presets','reference'].includes(gen)) S.composite = null
+
   S.gen=gen
   document.querySelectorAll('.nav-item').forEach(el=>{
     el.classList.toggle('active', el.dataset.gen===gen)
@@ -2018,6 +2032,25 @@ function selectGen(gen){
      flowfield:'Flow Field',material:'Material',reference:'Reference Image',
      presets:'Presets'}[gen]||gen
   buildControls()
+  _updateButtonVisibility(gen)
+}
+
+// Show/hide topbar buttons based on what's actually useful for this generator
+function _updateButtonVisibility(gen){
+  const isComposite = !!S.composite
+  const isGeo  = gen === 'geometric'
+  const isGrad = gen === 'gradient'
+  const isTileable = isGeo
+
+  // Tile preview — only geometric patterns tile meaningfully
+  document.getElementById('btn-tilePreview').style.display = isTileable ? '' : 'none'
+  // CSS copy — only gradient produces real CSS
+  document.getElementById('btn-copyCSS').style.display = isGrad ? '' : 'none'
+  // SVG export — works for gradient + geometric
+  document.getElementById('btn-copySVG').style.display = (isGrad||isGeo) ? '' : 'none'
+  // Shuffle + Variations — clear composite first, always available
+  document.getElementById('btn-shuffle').style.display = isComposite ? 'none' : ''
+  document.getElementById('btn-variations').style.display = isComposite ? 'none' : ''
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2032,7 +2065,11 @@ function applySize(val){
 // EVENTS
 // ═══════════════════════════════════════════════════════════
 document.querySelectorAll('.nav-item[data-gen]').forEach(el=>{
-  el.addEventListener('click',()=>{ selectGen(el.dataset.gen); if(el.dataset.gen!=='presets'&&el.dataset.gen!=='reference') render(true) })
+  el.addEventListener('click',()=>{
+    const gen = el.dataset.gen
+    selectGen(gen)
+    if(gen!=='presets' && gen!=='reference') render(true)
+  })
 })
 document.getElementById('canvas-size-sel').addEventListener('change',e=>applySize(e.target.value))
 document.getElementById('btn-export').addEventListener('click',exportPNG)
@@ -2591,9 +2628,17 @@ const AI = {
 
   // ── RESOLVE PARAMS ────────────────────────────────────────────
   resolve(parsed) {
-    const isDark = parsed.dark !== null ? parsed.dark
-      : parsed.moods.some(m => AI.MOODS[m]?.darkMode !== false)
+    const text = (parsed.raw||'').toLowerCase()
+    // Explicit light keywords → light. Otherwise default to dark.
+    // Dark looks better for almost all artistic prompts (glow, abstract, magic, etc.)
+    const explicitLight = /\b(light|bright|white|pastel|sunny|clean|fresh|airy|soft bg|morning)\b/.test(text)
+    const explicitDark  = /\bdark\b/.test(text)
+    const isDark = explicitLight ? false
+      : explicitDark ? true
+      : parsed.dark !== null ? parsed.dark
+      : parsed.moods.some(m => AI.MOODS[m]?.darkMode)
       || ['dashboard','mobile','fintech','gaming','crypto','ai','music','portfolio'].includes(parsed.useCase)
+      || true // default to dark — richer for artistic/abstract prompts
 
     const palette = AI._buildPalette(parsed, isDark)
     const styleKey = AI._selectStyle(parsed, isDark)
@@ -2668,6 +2713,12 @@ const AI = {
       S._lastPalette = result.palette
       S._lastStyle   = result.styleKey
       render(true)
+      // In composite mode: only PNG export makes sense
+      document.getElementById('btn-shuffle').style.display    = 'none'
+      document.getElementById('btn-variations').style.display = 'none'
+      document.getElementById('btn-tilePreview').style.display= 'none'
+      document.getElementById('btn-copyCSS').style.display    = 'none'
+      document.getElementById('btn-copySVG').style.display    = 'none'
     } else {
       // Single-generator mode
       S.composite = null
@@ -2968,6 +3019,12 @@ document.addEventListener('click', e => {
 
 // Bind initial chips
 bindChips()
+
+// ── BOOT ──────────────────────────────────────────────────────
+selectGen('gradient')
+render(true)
+document.getElementById('btn-realtime').classList.add('active')
+_updateButtonVisibility('gradient')
 </script>
 </body>
 </html>
