@@ -1392,32 +1392,309 @@ function exportPNG(){
   a.download=`texture-${S.gen}-${Date.now()}.png`; a.click(); toast('PNG downloaded!')
 }
 
+// ═══════════════════════════════════════════════════════════
+// PROPER VECTOR SVG EXPORT
+// All geometric & gradient types produce native SVG shapes
+// — fully editable in Figma, Illustrator, Inkscape, etc.
+// Noise / Flow / Material fall back to embedded raster.
+// ═══════════════════════════════════════════════════════════
 function exportSVG(){
-  let svg = ''
   const {w,h}=S, p=S.params[S.gen]
-  if(S.gen==='gradient'){
-    const css=gradientToCSS(p).replace('background: ','').replace(';','')
-    svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-<defs><linearGradient id="g" x1="0%" y1="0%" x2="100%" y2="100%">
-${p.stops.map((s,i)=>`<stop offset="${Math.round(i/Math.max(p.stops.length-1,1)*100)}%" stop-color="${s}"/>`).join('\n')}
-</linearGradient></defs>
-<rect width="${w}" height="${h}" fill="url(#g)"/>
-</svg>`
-  } else if(S.gen==='geometric'){
-    // export as SVG pattern
-    svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-<rect width="${w}" height="${h}" fill="${p.colorB}"/>
-<!-- geometric pattern — rasterized from canvas -->
-<image width="${w}" height="${h}" href="${canvas.toDataURL()}"/>
-</svg>`
-  } else {
-    svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}">
-<image width="${w}" height="${h}" href="${canvas.toDataURL()}"/>
+  let svg = _buildVectorSVG(w,h,S.gen,p)
+  const isVector = !!svg
+  if(!svg){
+    svg=`<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <!-- ${S.gen} — raster embed (noise/flow/material generators are pixel-based) -->
+  <image width="${w}" height="${h}" preserveAspectRatio="none"
+         href="${canvas.toDataURL('image/png')}"/>
 </svg>`
   }
-  const blob=new Blob([svg],{type:'image/svg+xml'})
+  const blob=new Blob([svg],{type:'image/svg+xml;charset=utf-8'})
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob)
-  a.download=`texture-${S.gen}-${Date.now()}.svg`; a.click(); toast('SVG downloaded!')
+  a.download=`texture-${S.gen}-${p.type||''}-${Date.now()}.svg`; a.click()
+  toast(isVector ? '✓ Vector SVG exported — editable in Figma!' : '⚠ Raster SVG (noise generators are pixel-based)')
+}
+
+function _buildVectorSVG(w,h,gen,p){
+  if(gen==='gradient')  return _svgGradient(w,h,p)
+  if(gen==='geometric') return _svgGeometric(w,h,p)
+  return null
+}
+
+// ── GRADIENT → native SVG gradients ──────────────────────────
+function _svgGradient(w,h,p){
+  const {type,stops,angle,cx,cy}=p
+  const stopEls = stops.map((c,i)=>`    <stop offset="${Math.round(i/Math.max(stops.length-1,1)*100)}%" stop-color="${c}"/>`).join('\n')
+
+  if(type==='linear'){
+    const rad=angle*Math.PI/180
+    const x1=(50-Math.cos(rad)*50).toFixed(2), y1=(50-Math.sin(rad)*50).toFixed(2)
+    const x2=(50+Math.cos(rad)*50).toFixed(2), y2=(50+Math.sin(rad)*50).toFixed(2)
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <linearGradient id="grad" x1="${x1}%" y1="${y1}%" x2="${x2}%" y2="${y2}%">
+${stopEls}
+    </linearGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#grad)"/>
+</svg>`
+  }
+
+  if(type==='radial'){
+    const pcx=Math.round(cx*100), pcy=Math.round(cy*100)
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>
+    <radialGradient id="grad" cx="${pcx}%" cy="${pcy}%" r="70%" fx="${pcx}%" fy="${pcy}%">
+${stopEls}
+    </radialGradient>
+  </defs>
+  <rect width="${w}" height="${h}" fill="url(#grad)"/>
+</svg>`
+  }
+
+  if(type==='conic'){
+    // SVG has no native conic gradient — render as 360 pie slices (Figma ungroupable)
+    const SEGS=360, ccx=w*cx, ccy=h*cy, r=Math.sqrt(w*w+h*h)
+    const paths=Array.from({length:SEGS},(_,i)=>{
+      const t=i/SEGS
+      const a1=t*Math.PI*2-Math.PI/2, a2=(i+1)/SEGS*Math.PI*2-Math.PI/2
+      const x1=(ccx+Math.cos(a1)*r).toFixed(1), y1=(ccy+Math.sin(a1)*r).toFixed(1)
+      const x2=(ccx+Math.cos(a2)*r).toFixed(1), y2=(ccy+Math.sin(a2)*r).toFixed(1)
+      return `  <path d="M${ccx.toFixed(1)},${ccy.toFixed(1)} L${x1},${y1} L${x2},${y2} Z" fill="${_interpStops(stops,t)}"/>`
+    }).join('\n')
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <!-- conic gradient — 360 editable path segments -->
+${paths}
+</svg>`
+  }
+
+  if(type==='mesh'){
+    const corners=[
+      {x:0,   y:0,   c:stops[0]||'#000'},
+      {x:w,   y:0,   c:stops[1]||'#000'},
+      {x:0,   y:h,   c:stops[2]||'#000'},
+      {x:w,   y:h,   c:stops[3]||'#000'},
+    ]
+    const defs=corners.map(({x,y,c},i)=>{
+      const {r,g,b}=hex2rgb(c)
+      return `    <radialGradient id="mg${i}" cx="${x}" cy="${y}" r="${Math.sqrt(w*w+h*h)*1.1}" gradientUnits="userSpaceOnUse">
+      <stop offset="0%" stop-color="rgb(${r},${g},${b})" stop-opacity="0.85"/>
+      <stop offset="100%" stop-color="rgb(${r},${g},${b})" stop-opacity="0"/>
+    </radialGradient>`
+    }).join('\n')
+    const rects=corners.map((_,i)=>`  <rect width="${w}" height="${h}" fill="url(#mg${i})" style="mix-blend-mode:screen"/>`).join('\n')
+    return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <defs>\n${defs}\n  </defs>
+  <rect width="${w}" height="${h}" fill="${stops[0]||'#000'}"/>
+${rects}
+</svg>`
+  }
+  return null // aurora → raster
+}
+
+// ── GEOMETRIC → pure SVG vector shapes ───────────────────────
+function _svgGeometric(w,h,p){
+  const {type,colorA,colorB,size,lineW,filled,opacity,gap,rotation}=p
+  const fill=filled?colorA:'none', stroke=colorA, sw=lineW, op=opacity
+
+  const dispatch={
+    hex:         ()=>_svgHex(w,h,size,fill,stroke,sw,op),
+    triangles:   ()=>_svgTriangles(w,h,size,fill,stroke,sw,op),
+    dots:        ()=>_svgDots(w,h,size,gap,colorA,op),
+    stripes:     ()=>_svgStripes(w,h,size,rotation,colorA,op),
+    chevron:     ()=>_svgChevron(w,h,size,stroke,sw,op),
+    isogrid:     ()=>_svgIsoGrid(w,h,size,stroke,sw,op),
+    dotgrid:     ()=>_svgDotGrid(w,h,size,gap,colorA,op),
+    truchet:     ()=>_svgTruchet(w,h,size,stroke,sw,op),
+    moroccan:    ()=>_svgMoroccan(w,h,size,fill,stroke,sw,op),
+    islamic:     ()=>_svgIslamic(w,h,size,fill,stroke,sw,op),
+    houndstooth: ()=>_svgHoundstooth(w,h,size,colorA,colorB),
+    plaid:       ()=>_svgPlaid(w,h,size,colorA,colorB),
+  }
+  const fn=dispatch[type]; if(!fn) return null
+  const shapes=fn()
+
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <!-- Background -->
+  <rect id="background" width="${w}" height="${h}" fill="${colorB}"/>
+  <!-- Pattern: ${type} — each shape is individually selectable in Figma -->
+  <g id="${type}-pattern">
+${shapes}
+  </g>
+</svg>`
+}
+
+// ── Hex grid ──────────────────────────────────────────────────
+function _svgHex(w,h,r,fill,stroke,sw,op){
+  const ht=Math.sqrt(3)*r
+  const cols=Math.ceil(w/(r*1.5))+2, rows=Math.ceil(h/ht)+2
+  const out=[]
+  for(let row=-1;row<rows;row++) for(let col=-1;col<cols;col++){
+    const cx=col*r*1.5, cy=row*ht+(col%2===0?0:ht/2)
+    const pts=Array.from({length:6},(_,i)=>{
+      const a=Math.PI/3*i-Math.PI/6
+      return `${(cx+r*Math.cos(a)).toFixed(2)},${(cy+r*Math.sin(a)).toFixed(2)}`
+    }).join(' ')
+    out.push(`    <polygon points="${pts}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Triangles ────────────────────────────────────────────────
+function _svgTriangles(w,h,s,fill,stroke,sw,op){
+  const ht=Math.sqrt(3)/2*s
+  const rows=Math.ceil(h/ht)+2, cols=Math.ceil(w/s)+2
+  const out=[]
+  for(let r=-1;r<rows;r++) for(let c=-1;c<cols;c++){
+    const x=c*s-(r%2===0?0:s/2), y=r*ht
+    out.push(`    <polygon points="${x.toFixed(1)},${(y+ht).toFixed(1)} ${(x+s/2).toFixed(1)},${y.toFixed(1)} ${(x+s).toFixed(1)},${(y+ht).toFixed(1)}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Dots (polka) ──────────────────────────────────────────────
+function _svgDots(w,h,s,g,color,op){
+  const r=Math.max((s-g)/2*.45,1)
+  const out=[]
+  for(let y=s/2;y<h+s;y+=s) for(let x=s/2;x<w+s;x+=s)
+    out.push(`    <circle cx="${x.toFixed(1)}" cy="${y.toFixed(1)}" r="${r.toFixed(2)}" fill="${color}" opacity="${op}"/>`)
+  return out.join('\n')
+}
+
+// ── Stripes ───────────────────────────────────────────────────
+function _svgStripes(w,h,s,angle,color,op){
+  const d=Math.sqrt(w*w+h*h), cx=w/2, cy=h/2
+  const out=[]
+  for(let x=-d;x<d;x+=s*2)
+    out.push(`    <rect x="${(cx+x).toFixed(1)}" y="${(cy-d).toFixed(1)}" width="${s}" height="${(d*2).toFixed(1)}" fill="${color}" opacity="${op}" transform="rotate(${angle} ${cx} ${cy})"/>`)
+  return out.join('\n')
+}
+
+// ── Chevron ───────────────────────────────────────────────────
+function _svgChevron(w,h,s,stroke,sw,op){
+  const rows=Math.ceil(h/(s*.8))+2, cols=Math.ceil(w/s)+2
+  const out=[]
+  for(let r=-1;r<rows;r++) for(let c=-1;c<cols;c++){
+    const x=c*s, y=r*s*.8
+    out.push(`    <polyline points="${x.toFixed(1)},${(y+s*.4).toFixed(1)} ${(x+s/2).toFixed(1)},${y.toFixed(1)} ${(x+s).toFixed(1)},${(y+s*.4).toFixed(1)}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="miter" opacity="${op}"/>`)
+    out.push(`    <polyline points="${x.toFixed(1)},${(y+s*.8).toFixed(1)} ${(x+s/2).toFixed(1)},${(y+s*.4).toFixed(1)} ${(x+s).toFixed(1)},${(y+s*.8).toFixed(1)}" fill="none" stroke="${stroke}" stroke-width="${sw}" stroke-linejoin="miter" opacity="${op}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Isometric grid ────────────────────────────────────────────
+function _svgIsoGrid(w,h,s,stroke,sw,op){
+  const hs=s/2, vs=s*Math.sqrt(3)/2
+  const rows=Math.ceil(h/vs)+2, cols=Math.ceil(w/hs)+2
+  const out=[]
+  for(let row=-2;row<rows;row++) for(let col=-2;col<cols;col++){
+    const x=col*hs+(row%2===0?0:hs/2), y=row*vs
+    out.push(`    <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x-hs/2).toFixed(1)}" y2="${(y+vs/2).toFixed(1)}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+    out.push(`    <line x1="${x.toFixed(1)}" y1="${y.toFixed(1)}" x2="${(x+hs/2).toFixed(1)}" y2="${(y+vs/2).toFixed(1)}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Dot grid (Notion-style) ───────────────────────────────────
+function _svgDotGrid(w,h,s,g,color,op){
+  const r=Math.max(g/2,1)
+  const out=[]
+  for(let y=0;y<h+s;y+=s) for(let x=0;x<w+s;x+=s)
+    out.push(`    <circle cx="${x}" cy="${y}" r="${r}" fill="${color}" opacity="${op}"/>`)
+  return out.join('\n')
+}
+
+// ── Truchet tiles ─────────────────────────────────────────────
+function _svgTruchet(w,h,s,stroke,sw,op){
+  const cols=Math.ceil(w/s)+1, rows=Math.ceil(h/s)+1
+  const out=[]
+  for(let r=0;r<rows;r++) for(let c=0;c<cols;c++){
+    const x=c*s, y=r*s
+    const flip=_seededRand(c*1000+r*37+17)<.5
+    if(flip){
+      out.push(`    <path d="M${x},${y+s/2} A${s/2},${s/2} 0 0 1 ${x+s/2},${y}" fill="none" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+      out.push(`    <path d="M${x+s/2},${y+s} A${s/2},${s/2} 0 0 1 ${x+s},${y+s/2}" fill="none" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+    } else {
+      out.push(`    <path d="M${x},${y+s/2} A${s/2},${s/2} 0 0 0 ${x+s/2},${y+s}" fill="none" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+      out.push(`    <path d="M${x+s/2},${y} A${s/2},${s/2} 0 0 0 ${x+s},${y+s/2}" fill="none" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+    }
+  }
+  return out.join('\n')
+}
+
+// ── Moroccan 8-pointed star ───────────────────────────────────
+function _svgMoroccan(w,h,s,fill,stroke,sw,op){
+  const cols=Math.ceil(w/s)+2, rows=Math.ceil(h/s)+2
+  const out=[]
+  for(let r=-1;r<rows;r++) for(let c=-1;c<cols;c++){
+    const ox=(r%2===0?0:s/2), cx=c*s+ox, cy=r*s*.75
+    const pts=[]
+    for(let i=0;i<8;i++){
+      const a=i*Math.PI/4, a2=(i+.5)*Math.PI/4
+      pts.push(`${(cx+Math.cos(a)*s*.45).toFixed(2)},${(cy+Math.sin(a)*s*.45).toFixed(2)}`)
+      pts.push(`${(cx+Math.cos(a2)*s*.22).toFixed(2)},${(cy+Math.sin(a2)*s*.22).toFixed(2)}`)
+    }
+    out.push(`    <polygon points="${pts.join(' ')}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Islamic 12-pointed star ───────────────────────────────────
+function _svgIslamic(w,h,s,fill,stroke,sw,op){
+  const cols=Math.ceil(w/s)+2, rows=Math.ceil(h/s)+2
+  const out=[]
+  for(let r=-1;r<rows;r++) for(let c=-1;c<cols;c++){
+    const cx=c*s+s/2, cy=r*s+s/2
+    for(let i=0;i<12;i++){
+      const a=i*Math.PI/6, a2=(i+.5)*Math.PI/6
+      const x1=(cx+Math.cos(a)*s*.48).toFixed(2),   y1=(cy+Math.sin(a)*s*.48).toFixed(2)
+      const x2=(cx+Math.cos(a2)*s*.20).toFixed(2),  y2=(cy+Math.sin(a2)*s*.20).toFixed(2)
+      const x3=(cx+Math.cos(a+Math.PI/6)*s*.48).toFixed(2), y3=(cy+Math.sin(a+Math.PI/6)*s*.48).toFixed(2)
+      out.push(`    <polygon points="${x1},${y1} ${x2},${y2} ${x3},${y3}" fill="${fill}" stroke="${stroke}" stroke-width="${sw}" opacity="${op}"/>`)
+    }
+  }
+  return out.join('\n')
+}
+
+// ── Houndstooth ───────────────────────────────────────────────
+function _svgHoundstooth(w,h,s,colorA,colorB){
+  const cols=Math.ceil(w/(s*2))+2, rows=Math.ceil(h/(s*2))+2
+  const out=[]
+  for(let r=-1;r<rows;r++) for(let c=-1;c<cols;c++){
+    const x=c*s*2, y=r*s*2
+    // foreground shapes (colorA)
+    out.push(`    <polygon points="${x},${y} ${x+s},${y} ${x+s/2},${y+s/2}" fill="${colorA}"/>`)
+    out.push(`    <polygon points="${x+s},${y} ${x+s*2},${y} ${x+s*1.5},${y+s/2}" fill="${colorA}"/>`)
+    out.push(`    <polygon points="${x},${y} ${x+s/2},${y+s/2} ${x},${y+s}" fill="${colorA}"/>`)
+    out.push(`    <polygon points="${x+s*2},${y} ${x+s*2},${y+s} ${x+s*1.5},${y+s/2}" fill="${colorA}"/>`)
+    // background fill shapes (colorB)
+    out.push(`    <polygon points="${x+s/2},${y+s/2} ${x+s},${y} ${x+s*1.5},${y+s/2} ${x+s},${y+s}" fill="${colorB}"/>`)
+    out.push(`    <polygon points="${x},${y+s} ${x+s/2},${y+s/2} ${x+s},${y+s} ${x+s/2},${y+s*1.5}" fill="${colorB}"/>`)
+    out.push(`    <polygon points="${x+s},${y+s} ${x+s*1.5},${y+s/2} ${x+s*2},${y+s} ${x+s*1.5},${y+s*1.5}" fill="${colorB}"/>`)
+  }
+  return out.join('\n')
+}
+
+// ── Plaid / Tartan ────────────────────────────────────────────
+function _svgPlaid(w,h,s,colorA,colorB){
+  const widths=[s*.1,s*.3,s*.1,s*.3,s*.1]
+  const cols=['#fff',colorA,colorB,colorA,'#fff']
+  const out=[]
+  // vertical bands
+  let x=0
+  for(let i=0; x<w+s; i++){
+    const wi=widths[i%widths.length]
+    out.push(`    <rect x="${x.toFixed(1)}" y="0" width="${wi.toFixed(1)}" height="${h}" fill="${cols[i%cols.length]}" opacity="0.65"/>`)
+    x+=wi
+  }
+  // horizontal bands (layered for plaid cross effect)
+  let y=0
+  for(let i=0; y<h+s; i++){
+    const wi=widths[i%widths.length]
+    out.push(`    <rect x="0" y="${y.toFixed(1)}" width="${w}" height="${wi.toFixed(1)}" fill="${cols[i%cols.length]}" opacity="0.4"/>`)
+    y+=wi
+  }
+  return out.join('\n')
 }
 
 function copyCSS(){
