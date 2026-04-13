@@ -216,6 +216,16 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <div class="nav-item" data-gen="flowfield"><span class="icon">〜</span>Flow Fields</div>
   <div class="nav-item" data-gen="material"><span class="icon">◈</span>Materials</div>
   <div class="nav-divider"></div>
+  <div class="nav-section">Advanced</div>
+  <div class="nav-item" data-gen="topographic"><span class="icon">⊕</span>Topographic</div>
+  <div class="nav-item" data-gen="neural"><span class="icon">◈</span>Neural Mesh</div>
+  <div class="nav-item" data-gen="auroragen"><span class="icon">✦</span>Aurora</div>
+  <div class="nav-item" data-gen="particles"><span class="icon">·</span>Particle Field</div>
+  <div class="nav-item" data-gen="isometric"><span class="icon">⬡</span>Isometric</div>
+  <div class="nav-item" data-gen="holographic"><span class="icon">◇</span>Holographic</div>
+  <div class="nav-item" data-gen="circuit"><span class="icon">⊞</span>Circuit Board</div>
+  <div class="nav-item" data-gen="fluid"><span class="icon">〜</span>Fluid</div>
+  <div class="nav-divider"></div>
   <div class="nav-section">Tools</div>
   <div class="nav-item" data-gen="reference"><span class="icon">🖼</span>Reference Image</div>
   <div class="nav-item" data-gen="presets"><span class="icon">★</span>Presets</div>
@@ -302,6 +312,14 @@ const S = {
     noise: { type:'fbm', scale:4, octaves:5, turbulence:.5, colorA:'#1a1a2e', colorB:'#7c3aed', colorC:'#ec4899', opacity:1, seed:0 },
     flowfield: { type:'curl', count:2000, stepLen:3, lineW:1, speed:.8, colorA:'#6366f1', colorB:'#06b6d4', bg:'#050510', opacity:.7, seed:0 },
     material: { type:'glassmorphism', blur:12, opacity:.15, color:'#ffffff', tint:'#6366f1', grain:.08 },
+    topographic: { colorBg:'#0a1628', colorA:'#1e3a5f', colorB:'#00b4d8', levels:15, scale:4, lineW:1.5, opacity:.85, filled:true, seed:0 },
+    neural: { nodeCount:80, nodeSize:3, connectRadius:.22, edgeOpacity:.35, nodeColor:'#6366f1', edgeColor:'#06b6d4', bg:'#050510', opacity:.9, seed:0 },
+    auroragen: { colorA:'#00c6a7', colorB:'#7c3aed', colorC:'#06b6d4', bg:'#030b18', intensity:.8, waveAmp:.12, bands:4, opacity:1, seed:0 },
+    particles: { count:800, minSize:.8, maxSize:3.5, colorA:'#6366f1', colorB:'#ec4899', bg:'#050510', glow:2, opacity:.85, seed:0 },
+    isometric: { size:52, colorTop:'#6366f1', colorLeft:'#1e1b4b', colorRight:'#312e81', bg:'#0b0b10', depth:.7, opacity:1, filled:true, seed:0 },
+    holographic: { style:'foil', angle:135, intensity:.9, grain:.03, opacity:1, hueShift:0 },
+    circuit: { traceColor:'#22d3ee', bg:'#050a10', lineW:1.5, density:5, glowColor:'#00ff88', glowIntensity:.6, seed:0, opacity:.9 },
+    fluid: { colorA:'#6366f1', colorB:'#ec4899', colorC:'#06b6d4', bg:'#050510', viscosity:.6, scale:4, turbulence:.8, opacity:1, seed:0 },
   },
 }
 
@@ -820,6 +838,461 @@ function _applyVignette(c,w,h,strength){
   c.fillStyle=g; c.fillRect(0,0,w,h)
 }
 
+// ─── TOPOGRAPHIC CONTOUR ────────────────────────────────────
+function genTopographic(c, w, h, p) {
+  const {colorBg, colorA, colorB, levels, scale, lineW, opacity, filled, seed} = p
+  const sx = getSimplex()
+  const sc = scale / 10
+  const nl = Math.max(3, Math.round(levels))
+  const edgeW = lineW * 0.013
+  const ca = hex2rgb(colorA), cb = hex2rgb(colorB), cbg = hex2rgb(colorBg)
+  const STEP = 2
+  const idata = c.createImageData(w, h), d = idata.data
+
+  for(let y = 0; y < h; y += STEP) {
+    for(let x = 0; x < w; x += STEP) {
+      const nx = (x/w)*sc*10 + seed*.71, ny = (y/h)*sc*10 + seed*.71
+      let v = 0, amp = .5, freq = 1
+      for(let o = 0; o < 5; o++) {
+        v += (sx ? sx.noise2D(nx*freq, ny*freq) : Math.sin(nx*freq + ny*freq + o)) * amp
+        amp *= .5; freq *= 2
+      }
+      v = clamp(v + .5)
+      const bv = v * nl
+      const frac = bv - Math.floor(bv)
+      const isEdge = frac < edgeW || frac > 1 - edgeW
+      const bandIdx = Math.floor(bv)
+      const isMajor = bandIdx % Math.max(1, Math.floor(nl / 5)) === 0
+
+      for(let dy = 0; dy < STEP && y+dy < h; dy++) {
+        for(let dx = 0; dx < STEP && x+dx < w; dx++) {
+          const i = ((y+dy)*w + (x+dx)) * 4
+          if(isEdge) {
+            const alpha = isMajor ? opacity : opacity * 0.4
+            d[i]   = Math.round(lerp(ca.r, cb.r, v))
+            d[i+1] = Math.round(lerp(ca.g, cb.g, v))
+            d[i+2] = Math.round(lerp(ca.b, cb.b, v))
+            d[i+3] = Math.round(alpha * 255)
+          } else if(filled) {
+            const bt = Math.floor(v * nl) / nl
+            d[i]   = Math.round(lerp(cbg.r, lerp(ca.r, cb.r, bt), opacity * 0.55))
+            d[i+1] = Math.round(lerp(cbg.g, lerp(ca.g, cb.g, bt), opacity * 0.55))
+            d[i+2] = Math.round(lerp(cbg.b, lerp(ca.b, cb.b, bt), opacity * 0.55))
+            d[i+3] = 255
+          } else {
+            d[i] = cbg.r; d[i+1] = cbg.g; d[i+2] = cbg.b; d[i+3] = 255
+          }
+        }
+      }
+    }
+  }
+  const tmp = document.createElement('canvas'); tmp.width = w; tmp.height = h
+  tmp.getContext('2d').putImageData(idata, 0, 0)
+  c.clearRect(0,0,w,h)
+  if(!filled) { c.fillStyle = colorBg; c.fillRect(0,0,w,h) }
+  c.drawImage(tmp, 0, 0)
+}
+
+// ─── NEURAL NETWORK MESH ────────────────────────────────────
+function genNeural(c, w, h, p) {
+  const {nodeCount, nodeSize, connectRadius, edgeOpacity, nodeColor, edgeColor, bg, opacity, seed} = p
+  c.clearRect(0,0,w,h)
+  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  const nc = hex2rgb(nodeColor), ec = hex2rgb(edgeColor)
+  const nodes = []
+  for(let i = 0; i < nodeCount; i++) {
+    nodes.push({
+      x: _seededRand(seed*1000 + i*3.7) * w,
+      y: _seededRand(seed*1000 + i*3.7 + 500) * h,
+      s: _seededRand(seed*1000 + i*3.7 + 1000)
+    })
+  }
+  const maxDist = connectRadius * Math.sqrt(w*w + h*h)
+
+  // Edges
+  c.save(); c.globalAlpha = edgeOpacity * opacity
+  for(let i = 0; i < nodes.length; i++) {
+    for(let j = i+1; j < nodes.length; j++) {
+      const dx = nodes[i].x - nodes[j].x, dy = nodes[i].y - nodes[j].y
+      const dist = Math.sqrt(dx*dx + dy*dy)
+      if(dist < maxDist) {
+        const a = (1 - dist/maxDist) * 0.9
+        c.strokeStyle = `rgba(${ec.r},${ec.g},${ec.b},${a})`
+        c.lineWidth = 0.7
+        c.beginPath(); c.moveTo(nodes[i].x, nodes[i].y); c.lineTo(nodes[j].x, nodes[j].y); c.stroke()
+      }
+    }
+  }
+  c.restore()
+
+  // Nodes with glow
+  c.save(); c.globalAlpha = opacity
+  nodes.forEach(n => {
+    const ns = nodeSize * (0.5 + n.s * 0.8)
+    const gr = c.createRadialGradient(n.x, n.y, 0, n.x, n.y, ns * 4)
+    gr.addColorStop(0, `rgba(${nc.r},${nc.g},${nc.b},0.45)`)
+    gr.addColorStop(1, `rgba(${nc.r},${nc.g},${nc.b},0)`)
+    c.fillStyle = gr; c.beginPath(); c.arc(n.x, n.y, ns*4, 0, Math.PI*2); c.fill()
+    c.fillStyle = `rgba(${nc.r},${nc.g},${nc.b},1)`
+    c.beginPath(); c.arc(n.x, n.y, ns, 0, Math.PI*2); c.fill()
+    // Bright core
+    c.fillStyle = `rgba(255,255,255,0.7)`
+    c.beginPath(); c.arc(n.x, n.y, ns * 0.35, 0, Math.PI*2); c.fill()
+  })
+  c.restore()
+  _applyVignette(c, w, h, 0.45)
+}
+
+// ─── AURORA GENERATOR ───────────────────────────────────────
+function genAuroraBg(c, w, h, p) {
+  const {colorA, colorB, colorC, bg, intensity, waveAmp, bands, opacity, seed} = p
+  c.clearRect(0,0,w,h)
+  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  const sx = getSimplex()
+  const nb = Math.max(2, Math.round(bands))
+  const bandColors = [colorA, colorB, colorC]
+
+  c.save(); c.globalCompositeOperation = 'screen'
+  for(let bi = 0; bi < nb; bi++) {
+    const col = hex2rgb(bandColors[bi % bandColors.length])
+    const baseY = 0.28 + (bi / nb) * 0.44
+    const bandH = 0.22 + _seededRand(seed*100 + bi*17) * 0.16
+    const wSeed = seed * 0.5 + bi * 2.3
+    const SLICES = Math.ceil(w / 3)
+
+    c.beginPath()
+    // top wave
+    for(let si = 0; si <= SLICES; si++) {
+      const t = si / SLICES
+      const wave = sx ? sx.noise2D(t*4 + wSeed, bi*1.7 + seed) * waveAmp : Math.sin(t*Math.PI*4 + seed)*waveAmp
+      const ty = h * (baseY - bandH/2 + wave)
+      si === 0 ? c.moveTo(0, ty) : c.lineTo(si*(w/SLICES), ty)
+    }
+    // bottom wave (reverse)
+    for(let si = SLICES; si >= 0; si--) {
+      const t = si / SLICES
+      const wave = sx ? sx.noise2D(t*4 + wSeed, bi*1.7 + seed + 10) * waveAmp : Math.sin(t*Math.PI*4 + seed+2)*waveAmp
+      c.lineTo(si*(w/SLICES), h*(baseY + bandH/2 + wave))
+    }
+    c.closePath()
+
+    const grad = c.createLinearGradient(0, h*(baseY - bandH), 0, h*(baseY + bandH))
+    grad.addColorStop(0,   `rgba(${col.r},${col.g},${col.b},0)`)
+    grad.addColorStop(0.4, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.5})`)
+    grad.addColorStop(0.5, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.75})`)
+    grad.addColorStop(0.6, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.5})`)
+    grad.addColorStop(1,   `rgba(${col.r},${col.g},${col.b},0)`)
+    c.fillStyle = grad; c.fill()
+  }
+  c.restore()
+
+  // Ambient base glow
+  const gc = hex2rgb(colorA)
+  const grd = c.createRadialGradient(w*.5, h*.65, 0, w*.5, h*.65, w*.55)
+  grd.addColorStop(0, `rgba(${gc.r},${gc.g},${gc.b},${intensity*.12})`)
+  grd.addColorStop(1, 'rgba(0,0,0,0)')
+  c.save(); c.globalCompositeOperation = 'screen'; c.fillStyle = grd; c.fillRect(0,0,w,h); c.restore()
+  _applyGrain(c, w, h, 0.035)
+  _applyVignette(c, w, h, 0.6)
+}
+
+// ─── PARTICLE FIELD ─────────────────────────────────────────
+function genParticles(c, w, h, p) {
+  const {count, minSize, maxSize, colorA, colorB, bg, glow, opacity, seed} = p
+  c.clearRect(0,0,w,h)
+  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  const ca = hex2rgb(colorA), cb = hex2rgb(colorB)
+
+  c.save(); c.globalAlpha = opacity
+  const n = Math.round(count)
+  for(let i = 0; i < n; i++) {
+    const px = _seededRand(seed*100 + i*2.731) * w
+    const py = _seededRand(seed*100 + i*2.731 + 500) * h
+    const t  = _seededRand(seed*100 + i*2.731 + 1000)
+    const sa = _seededRand(seed*100 + i*2.731 + 1500)
+    const r  = Math.round(lerp(ca.r, cb.r, t))
+    const g  = Math.round(lerp(ca.g, cb.g, t))
+    const bv = Math.round(lerp(ca.b, cb.b, t))
+    const sz = lerp(minSize, maxSize, sa)
+
+    if(glow > 0) {
+      const gr = c.createRadialGradient(px, py, 0, px, py, sz * glow * 3.5)
+      gr.addColorStop(0, `rgba(${r},${g},${bv},0.28)`)
+      gr.addColorStop(1, `rgba(${r},${g},${bv},0)`)
+      c.fillStyle = gr
+      c.beginPath(); c.arc(px, py, sz*glow*3.5, 0, Math.PI*2); c.fill()
+    }
+    c.fillStyle = `rgba(${r},${g},${bv},1)`
+    c.beginPath(); c.arc(px, py, sz, 0, Math.PI*2); c.fill()
+  }
+  c.restore()
+  _applyVignette(c, w, h, 0.45)
+}
+
+// ─── ISOMETRIC GRID ─────────────────────────────────────────
+function genIsometric(c, w, h, p) {
+  const {size, colorTop, colorLeft, colorRight, bg, depth, opacity, filled} = p
+  c.clearRect(0,0,w,h)
+  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  const ct = hex2rgb(colorTop), cl = hex2rgb(colorLeft), cr2 = hex2rgb(colorRight)
+  const TW = size, TH = size * 0.5, cubeH = depth * TH
+  const cols = Math.ceil(w / TW) + 6, rows = Math.ceil(h / TH) + 6
+
+  c.save(); c.globalAlpha = opacity
+
+  // Painter's order: iterate by depth (col+row) from back to front
+  const maxD = cols + rows
+  for(let d = 0; d <= maxD; d++) {
+    for(let col = 0; col < cols; col++) {
+      const row = d - col
+      if(row < 0 || row >= rows) continue
+      const cx = (col - row) * TW/2 + w/2
+      const cy = (col + row) * TH/2 - (rows * TH/4)
+      if(cx+TW < 0 || cx-TW > w || cy+TH+cubeH < 0 || cy-cubeH > h) continue
+
+      // Vertices
+      const tTop    = {x:cx,        y:cy - cubeH}
+      const tRight  = {x:cx+TW/2,   y:cy+TH/2 - cubeH}
+      const tBottom = {x:cx,        y:cy+TH - cubeH}
+      const tLeft   = {x:cx-TW/2,   y:cy+TH/2 - cubeH}
+      const gBottom = {x:cx,        y:cy+TH}
+      const gLeft   = {x:cx-TW/2,   y:cy+TH/2}
+      const gRight  = {x:cx+TW/2,   y:cy+TH/2}
+
+      if(filled) {
+        // Top face
+        c.fillStyle = `rgb(${ct.r},${ct.g},${ct.b})`
+        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
+        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.fill()
+        // Left face
+        c.fillStyle = `rgb(${cl.r},${cl.g},${cl.b})`
+        c.beginPath(); c.moveTo(tLeft.x,tLeft.y); c.lineTo(tBottom.x,tBottom.y)
+        c.lineTo(gBottom.x,gBottom.y); c.lineTo(gLeft.x,gLeft.y); c.closePath(); c.fill()
+        // Right face
+        c.fillStyle = `rgb(${cr2.r},${cr2.g},${cr2.b})`
+        c.beginPath(); c.moveTo(tBottom.x,tBottom.y); c.lineTo(tRight.x,tRight.y)
+        c.lineTo(gRight.x,gRight.y); c.lineTo(gBottom.x,gBottom.y); c.closePath(); c.fill()
+        // Edge highlights
+        c.strokeStyle = `rgba(255,255,255,0.06)`; c.lineWidth = 0.5
+        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
+        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.stroke()
+      } else {
+        c.strokeStyle = `rgba(${ct.r},${ct.g},${ct.b},0.5)`; c.lineWidth = 0.7
+        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
+        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.stroke()
+        c.beginPath()
+        c.moveTo(tLeft.x,tLeft.y);   c.lineTo(gLeft.x,gLeft.y)
+        c.moveTo(tBottom.x,tBottom.y); c.lineTo(gBottom.x,gBottom.y)
+        c.moveTo(tRight.x,tRight.y); c.lineTo(gRight.x,gRight.y)
+        c.stroke()
+      }
+    }
+  }
+  c.restore()
+}
+
+// ─── HOLOGRAPHIC / METALLIC ─────────────────────────────────
+function genHolographic(c, w, h, p) {
+  const {style, angle, intensity, grain, opacity} = p
+  const sx = getSimplex()
+  const STEP = 2
+  const idata = c.createImageData(w, h), d = idata.data
+
+  for(let y = 0; y < h; y += STEP) {
+    for(let x = 0; x < w; x += STEP) {
+      let hue, sat, lig
+      const rad = angle * Math.PI / 180
+      const pos = (x/w) * Math.cos(rad) + (y/h) * Math.sin(rad)
+
+      if(style === 'foil') {
+        const nx = x/w*3, ny = y/h*3
+        const warp = sx ? sx.noise2D(nx, ny) * 0.4 : 0
+        hue  = ((pos + warp) % 1 + 1) * 360
+        sat  = 0.88
+        lig  = 0.52 + (sx ? sx.noise2D(nx*5, ny*5) * 0.08 : 0)
+      } else if(style === 'chrome') {
+        const nx = x/w*6, ny = y/h*6
+        const n = sx ? sx.noise2D(nx, ny)*0.5+0.5 : Math.sin(nx+ny)*0.5+0.5
+        const band = Math.sin(n * Math.PI * 10) * 0.5 + 0.5
+        hue  = 200 + band * 25
+        sat  = 0.12 + band * 0.18
+        lig  = 0.28 + band * 0.52
+      } else if(style === 'oilslick') {
+        const nx = x/w*9, ny = y/h*9
+        const n  = sx ? sx.noise2D(nx, ny) : Math.sin(nx+ny)
+        const w2 = sx ? sx.noise2D(nx*.5+100, ny*.5+100) * 0.35 : 0
+        hue  = (((n * 2 + w2) % 1 + 1) * 360)
+        sat  = 0.96
+        lig  = 0.44 + (sx ? sx.noise2D(nx*2, ny*2) * 0.07 : 0)
+      } else { // rainbow
+        hue  = ((pos % 1 + 1) % 1) * 360
+        sat  = 0.92
+        lig  = 0.54
+      }
+
+      const rgb = _hslToRgb(((hue % 360 + 360) % 360) / 360, clamp(sat), clamp(lig))
+      const ri = Math.round(lerp(128, rgb.r, intensity))
+      const gi = Math.round(lerp(128, rgb.g, intensity))
+      const bi = Math.round(lerp(128, rgb.b, intensity))
+
+      for(let dy = 0; dy < STEP && y+dy < h; dy++) {
+        for(let dx = 0; dx < STEP && x+dx < w; dx++) {
+          const i = ((y+dy)*w + (x+dx)) * 4
+          d[i]=ri; d[i+1]=gi; d[i+2]=bi; d[i+3]=Math.round(opacity*255)
+        }
+      }
+    }
+  }
+  const tmp = document.createElement('canvas'); tmp.width=w; tmp.height=h
+  tmp.getContext('2d').putImageData(idata, 0, 0)
+  c.clearRect(0,0,w,h); c.drawImage(tmp, 0, 0)
+  if(grain > 0) _applyGrain(c, w, h, grain)
+}
+
+function _hslToRgb(h, s, l) {
+  const hue2rgb = (p,q,t) => {
+    if(t<0) t+=1; if(t>1) t-=1
+    if(t<1/6) return p+(q-p)*6*t; if(t<1/2) return q
+    if(t<2/3) return p+(q-p)*(2/3-t)*6; return p
+  }
+  if(s===0){const v=Math.round(l*255);return{r:v,g:v,b:v}}
+  const q=l<0.5?l*(1+s):l+s-l*s, pv=2*l-q
+  return{r:Math.round(hue2rgb(pv,q,h+1/3)*255),g:Math.round(hue2rgb(pv,q,h)*255),b:Math.round(hue2rgb(pv,q,h-1/3)*255)}
+}
+
+// ─── CIRCUIT BOARD ──────────────────────────────────────────
+function genCircuit(c, w, h, p) {
+  const {traceColor, bg, lineW, density, glowColor, glowIntensity, seed, opacity} = p
+  c.clearRect(0,0,w,h)
+  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  const tc = hex2rgb(traceColor), gc = hex2rgb(glowColor)
+  const GRID = Math.max(16, Math.round(48 / density * 2.5))
+  const cols = Math.ceil(w/GRID) + 2, rows = Math.ceil(h/GRID) + 2
+
+  const traces = [], nodes = new Set()
+  const numTraces = Math.round(density * (cols+rows) * 0.9)
+
+  for(let t = 0; t < numTraces; t++) {
+    const isH = _seededRand(seed*100 + t*7.3) > 0.5
+    if(isH) {
+      const ro = Math.floor(_seededRand(seed*200 + t*3.1) * rows)
+      const c1 = Math.floor(_seededRand(seed*300 + t*5.7) * (cols-2))
+      const len = Math.ceil(_seededRand(seed*400 + t*2.9) * 7) + 1
+      const c2 = Math.min(cols-1, c1+len)
+      traces.push({x1:c1*GRID, y1:ro*GRID, x2:c2*GRID, y2:ro*GRID})
+      nodes.add(`${c1},${ro}`); nodes.add(`${c2},${ro}`)
+    } else {
+      const co = Math.floor(_seededRand(seed*500 + t*4.2) * cols)
+      const r1 = Math.floor(_seededRand(seed*600 + t*6.8) * (rows-2))
+      const len = Math.ceil(_seededRand(seed*700 + t*1.4) * 7) + 1
+      const r2 = Math.min(rows-1, r1+len)
+      traces.push({x1:co*GRID, y1:r1*GRID, x2:co*GRID, y2:r2*GRID})
+      nodes.add(`${co},${r1}`); nodes.add(`${co},${r2}`)
+    }
+  }
+  // L-bends
+  const numBends = Math.round(density * (cols+rows) * 0.35)
+  for(let t = 0; t < numBends; t++) {
+    const co = Math.floor(_seededRand(seed*800+t*9.1) * (cols-3))
+    const ro = Math.floor(_seededRand(seed*900+t*4.6) * (rows-3))
+    const co2 = co + Math.ceil(_seededRand(seed*1000+t*2.3)*4)+1
+    const ro2 = ro + Math.ceil(_seededRand(seed*1100+t*3.8)*4)+1
+    traces.push({x1:co*GRID, y1:ro*GRID, x2:co2*GRID, y2:ro*GRID})
+    traces.push({x1:co2*GRID, y1:ro*GRID, x2:co2*GRID, y2:ro2*GRID})
+    nodes.add(`${co},${ro}`); nodes.add(`${co2},${ro}`); nodes.add(`${co2},${ro2}`)
+  }
+
+  c.save(); c.globalAlpha = opacity
+  // Glow pass
+  if(glowIntensity > 0) {
+    c.save()
+    c.strokeStyle = `rgba(${gc.r},${gc.g},${gc.b},${glowIntensity*0.35})`
+    c.lineWidth = lineW * 5; c.lineCap = 'round'
+    traces.forEach(({x1,y1,x2,y2})=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()})
+    c.restore()
+  }
+  // Traces
+  c.strokeStyle = `rgb(${tc.r},${tc.g},${tc.b})`
+  c.lineWidth = lineW; c.lineCap = 'round'
+  traces.forEach(({x1,y1,x2,y2})=>{c.beginPath();c.moveTo(x1,y1);c.lineTo(x2,y2);c.stroke()})
+
+  // Pads
+  const padR = lineW * 2.8
+  nodes.forEach(key => {
+    const [co, ro] = key.split(',').map(Number)
+    const px = co*GRID, py = ro*GRID
+    if(px < -GRID || px > w+GRID || py < -GRID || py > h+GRID) return
+    if(glowIntensity > 0) {
+      const gr = c.createRadialGradient(px,py,0,px,py,padR*3)
+      gr.addColorStop(0, `rgba(${gc.r},${gc.g},${gc.b},${glowIntensity*0.5})`)
+      gr.addColorStop(1, `rgba(${gc.r},${gc.g},${gc.b},0)`)
+      c.fillStyle = gr; c.beginPath(); c.arc(px,py,padR*3,0,Math.PI*2); c.fill()
+    }
+    c.fillStyle = `rgb(${tc.r},${tc.g},${tc.b})`
+    c.beginPath(); c.arc(px,py,padR,0,Math.PI*2); c.fill()
+    c.fillStyle = bg
+    c.beginPath(); c.arc(px,py,padR*0.45,0,Math.PI*2); c.fill()
+  })
+  c.restore()
+  _applyVignette(c, w, h, 0.4)
+}
+
+// ─── FLUID DISTORTION ───────────────────────────────────────
+function genFluid(c, w, h, p) {
+  const {colorA, colorB, colorC, bg, viscosity, scale, turbulence, opacity, seed} = p
+  const sx = getSimplex()
+  const sc = scale / 10
+  const ca = hex2rgb(colorA), cb = hex2rgb(colorB), cc = hex2rgb(colorC), cbg = hex2rgb(bg)
+  const STEP = 2
+  const idata = c.createImageData(w, h), d = idata.data
+
+  for(let y = 0; y < h; y += STEP) {
+    for(let x = 0; x < w; x += STEP) {
+      const nx = (x/w)*sc*8 + seed*.5, ny = (y/h)*sc*8 + seed*.5
+
+      // Double domain warp for fluid look
+      const wx1 = sx ? sx.noise2D(nx+1.7,  ny+9.2)  * turbulence : 0
+      const wy1 = sx ? sx.noise2D(nx+8.3,  ny+2.8)  * turbulence : 0
+      const fx  = nx + wx1 * viscosity * 1.8
+      const fy  = ny + wy1 * viscosity * 1.8
+      const wx2 = sx ? sx.noise2D(fx+3.1,  fy+1.4)  * turbulence*0.5 : 0
+      const wy2 = sx ? sx.noise2D(fx+5.7,  fy+6.3)  * turbulence*0.5 : 0
+      const fx2 = fx + wx2, fy2 = fy + wy2
+
+      let v1=0, v2=0, amp=.5, freq=1
+      for(let o=0;o<4;o++){
+        v1 += (sx?sx.noise2D(fx2*freq, fy2*freq):Math.sin(fx2*freq+fy2*freq)) * amp
+        v2 += (sx?sx.noise2D(fx2*freq+50, fy2*freq+50):Math.sin(fx2*freq+fy2*freq+3.14)) * amp
+        amp*=.5; freq*=2
+      }
+      v1 = clamp(v1+.5); v2 = clamp(v2+.5)
+
+      let r, g, bv
+      if(v1 < .5) {
+        r  = Math.round(lerp(cbg.r, lerp(ca.r, cb.r, v1*2), opacity))
+        g  = Math.round(lerp(cbg.g, lerp(ca.g, cb.g, v1*2), opacity))
+        bv = Math.round(lerp(cbg.b, lerp(ca.b, cb.b, v1*2), opacity))
+      } else {
+        r  = Math.round(lerp(cbg.r, lerp(cb.r, cc.r, (v1-.5)*2), opacity))
+        g  = Math.round(lerp(cbg.g, lerp(cb.g, cc.g, (v1-.5)*2), opacity))
+        bv = Math.round(lerp(cbg.b, lerp(cb.b, cc.b, (v1-.5)*2), opacity))
+      }
+      r  = clamp(Math.round(r  + (v2-.5)*18*turbulence), 0, 255)
+      g  = clamp(Math.round(g  + (v2-.5)*12*turbulence), 0, 255)
+      bv = clamp(Math.round(bv + (v2-.5)*22*turbulence), 0, 255)
+
+      for(let dy=0;dy<STEP&&y+dy<h;dy++) for(let dx=0;dx<STEP&&x+dx<w;dx++){
+        const i=((y+dy)*w+(x+dx))*4; d[i]=r;d[i+1]=g;d[i+2]=bv;d[i+3]=255
+      }
+    }
+  }
+  const tmp=document.createElement('canvas');tmp.width=w;tmp.height=h
+  tmp.getContext('2d').putImageData(idata,0,0)
+  c.clearRect(0,0,w,h); c.fillStyle=bg; c.fillRect(0,0,w,h)
+  c.drawImage(tmp,0,0)
+  _applyGrain(c,w,h,.025)
+}
+
 // ═══════════════════════════════════════════════════════════
 // COMPOSITE RENDER ENGINE
 // Stacks multiple visual layers — used by AI prompt engine
@@ -1060,11 +1533,19 @@ function _doRender(){
 
   const p = S.params[S.gen]
   switch(S.gen){
-    case 'gradient':  genGradient(ctx,w,h,p); break
-    case 'geometric': genGeometric(ctx,w,h,p); break
-    case 'noise':     genNoise(ctx,w,h,p); break
-    case 'flowfield': genFlowField(ctx,w,h,p); break
-    case 'material':  genMaterial(ctx,w,h,p); break
+    case 'gradient':    genGradient(ctx,w,h,p); break
+    case 'geometric':   genGeometric(ctx,w,h,p); break
+    case 'noise':       genNoise(ctx,w,h,p); break
+    case 'flowfield':   genFlowField(ctx,w,h,p); break
+    case 'material':    genMaterial(ctx,w,h,p); break
+    case 'topographic': genTopographic(ctx,w,h,p); break
+    case 'neural':      genNeural(ctx,w,h,p); break
+    case 'auroragen':   genAuroraBg(ctx,w,h,p); break
+    case 'particles':   genParticles(ctx,w,h,p); break
+    case 'isometric':   genIsometric(ctx,w,h,p); break
+    case 'holographic': genHolographic(ctx,w,h,p); break
+    case 'circuit':     genCircuit(ctx,w,h,p); break
+    case 'fluid':       genFluid(ctx,w,h,p); break
   }
   updateA11y()
   updateCSSOutput()
@@ -1198,11 +1679,19 @@ function showVariations(){
     const vp = _randomVariation()
     const vctx = vc.getContext('2d')
     switch(S.gen){
-      case 'gradient':  genGradient(vctx,360,200,vp); break
-      case 'geometric': genGeometric(vctx,360,200,vp); break
-      case 'noise':     genNoise(vctx,360,200,vp); break
-      case 'flowfield': genFlowField(vctx,360,200,vp); break
-      case 'material':  genMaterial(vctx,360,200,vp); break
+      case 'gradient':    genGradient(vctx,360,200,vp); break
+      case 'geometric':   genGeometric(vctx,360,200,vp); break
+      case 'noise':       genNoise(vctx,360,200,vp); break
+      case 'flowfield':   genFlowField(vctx,360,200,vp); break
+      case 'material':    genMaterial(vctx,360,200,vp); break
+      case 'topographic': genTopographic(vctx,360,200,vp); break
+      case 'neural':      genNeural(vctx,360,200,vp); break
+      case 'auroragen':   genAuroraBg(vctx,360,200,vp); break
+      case 'particles':   genParticles(vctx,360,200,vp); break
+      case 'isometric':   genIsometric(vctx,360,200,vp); break
+      case 'holographic': genHolographic(vctx,360,200,vp); break
+      case 'circuit':     genCircuit(vctx,360,200,vp); break
+      case 'fluid':       genFluid(vctx,360,200,vp); break
     }
     vc.addEventListener('click',()=>{
       S.params[S.gen] = JSON.parse(JSON.stringify(vp))
@@ -1338,6 +1827,13 @@ function _applyPaletteToGen(gen, palette){
   else if(gen==='noise'){S.params.noise.colorA=palette[0];S.params.noise.colorB=palette[1]||palette[0];S.params.noise.colorC=palette[2]||palette[0]}
   else if(gen==='flowfield'){S.params.flowfield.colorA=palette[0];S.params.flowfield.colorB=palette[1]||palette[0];S.params.flowfield.bg=palette[palette.length-1]}
   else if(gen==='material'){S.params.material.tint=palette[0];S.params.material.color=palette[1]||'#ffffff'}
+  else if(gen==='topographic'){S.params.topographic.colorA=palette[0];S.params.topographic.colorB=palette[1]||palette[0];S.params.topographic.colorBg=palette[palette.length-1]}
+  else if(gen==='neural'){S.params.neural.nodeColor=palette[0];S.params.neural.edgeColor=palette[1]||palette[0];S.params.neural.bg=palette[palette.length-1]}
+  else if(gen==='auroragen'){S.params.auroragen.colorA=palette[0];S.params.auroragen.colorB=palette[1]||palette[0];S.params.auroragen.colorC=palette[2]||palette[0];S.params.auroragen.bg=palette[palette.length-1]}
+  else if(gen==='particles'){S.params.particles.colorA=palette[0];S.params.particles.colorB=palette[1]||palette[0];S.params.particles.bg=palette[palette.length-1]}
+  else if(gen==='isometric'){S.params.isometric.colorTop=palette[0];S.params.isometric.colorLeft=palette[1]||palette[0];S.params.isometric.colorRight=palette[2]||palette[0];S.params.isometric.bg=palette[palette.length-1]}
+  else if(gen==='circuit'){S.params.circuit.traceColor=palette[0];S.params.circuit.glowColor=palette[1]||palette[0];S.params.circuit.bg=palette[palette.length-1]}
+  else if(gen==='fluid'){S.params.fluid.colorA=palette[0];S.params.fluid.colorB=palette[1]||palette[0];S.params.fluid.colorC=palette[2]||palette[0];S.params.fluid.bg=palette[palette.length-1]}
 }
 
 function _renderRefPanel(palette, styleTag, brightness){
@@ -1389,7 +1885,15 @@ function _buildControlsFor(gen){
     case 'geometric': return _ctrlGeometric()
     case 'noise':     return _ctrlNoise()
     case 'flowfield': return _ctrlFlowField()
-    case 'material':  return _ctrlMaterial()
+    case 'material':    return _ctrlMaterial()
+    case 'topographic': return _ctrlTopographic()
+    case 'neural':      return _ctrlNeural()
+    case 'auroragen':   return _ctrlAuroraGen()
+    case 'particles':   return _ctrlParticles()
+    case 'isometric':   return _ctrlIsometric()
+    case 'holographic': return _ctrlHolographic()
+    case 'circuit':     return _ctrlCircuit()
+    case 'fluid':       return _ctrlFluid()
     case 'reference': return _ctrlReference()
     case 'presets':   return _ctrlPresets()
     default: return ''
@@ -1490,6 +1994,120 @@ function _ctrlMaterial(){
     ${_ctrl('mat_grain','Grain',p.grain,0,.5,.01)}
     ${_ctrlColor('mat_col','Color',p.color)}
     ${_ctrlColor('mat_tint','Tint',p.tint)}
+  </div>`
+}
+
+function _ctrlTopographic(){
+  const p=S.params.topographic
+  return `<div class="rp-section">
+    ${_ctrl('topo_levels','Contour Levels',p.levels,3,30,1)}
+    ${_ctrl('topo_scale','Scale',p.scale,1,15,.5)}
+    ${_ctrl('topo_lw','Line Weight',p.lineW,.5,5,.5)}
+    ${_ctrl('topo_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('topo_seed','Seed',p.seed,0,999,1)}
+    <div class="toggle-row"><span class="toggle-label">Filled bands</span><div class="toggle${p.filled?' on':''}" id="toggle_filled"></div></div>
+    ${_ctrlColor('topo_bg','Background',p.colorBg)}
+    ${_ctrlColor('topo_ca','Line Color A',p.colorA)}
+    ${_ctrlColor('topo_cb','Line Color B',p.colorB)}
+  </div>`
+}
+
+function _ctrlNeural(){
+  const p=S.params.neural
+  return `<div class="rp-section">
+    ${_ctrl('neu_count','Node Count',p.nodeCount,10,300,5)}
+    ${_ctrl('neu_size','Node Size',p.nodeSize,.5,10,.5)}
+    ${_ctrl('neu_radius','Connect Radius',p.connectRadius,.05,.5,.01)}
+    ${_ctrl('neu_edgeop','Edge Opacity',p.edgeOpacity,0,1,.01)}
+    ${_ctrl('neu_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('neu_seed','Seed',p.seed,0,999,1)}
+    ${_ctrlColor('neu_bg','Background',p.bg)}
+    ${_ctrlColor('neu_nc','Node Color',p.nodeColor)}
+    ${_ctrlColor('neu_ec','Edge Color',p.edgeColor)}
+  </div>`
+}
+
+function _ctrlAuroraGen(){
+  const p=S.params.auroragen
+  return `<div class="rp-section">
+    ${_ctrl('aug_bands','Band Count',p.bands,2,8,1)}
+    ${_ctrl('aug_int','Intensity',p.intensity,0,1,.01)}
+    ${_ctrl('aug_wave','Wave Amplitude',p.waveAmp,0,.4,.01)}
+    ${_ctrl('aug_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('aug_seed','Seed',p.seed,0,999,1)}
+    ${_ctrlColor('aug_bg','Background',p.bg)}
+    ${_ctrlColor('aug_ca','Color A',p.colorA)}
+    ${_ctrlColor('aug_cb','Color B',p.colorB)}
+    ${_ctrlColor('aug_cc','Color C',p.colorC)}
+  </div>`
+}
+
+function _ctrlParticles(){
+  const p=S.params.particles
+  return `<div class="rp-section">
+    ${_ctrl('par_count','Particle Count',p.count,50,3000,50)}
+    ${_ctrl('par_min','Min Size',p.minSize,.2,5,.1)}
+    ${_ctrl('par_max','Max Size',p.maxSize,.5,15,.5)}
+    ${_ctrl('par_glow','Glow Radius',p.glow,0,6,.1)}
+    ${_ctrl('par_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('par_seed','Seed',p.seed,0,999,1)}
+    ${_ctrlColor('par_bg','Background',p.bg)}
+    ${_ctrlColor('par_ca','Color A',p.colorA)}
+    ${_ctrlColor('par_cb','Color B',p.colorB)}
+  </div>`
+}
+
+function _ctrlIsometric(){
+  const p=S.params.isometric
+  return `<div class="rp-section">
+    ${_ctrl('iso_size','Tile Size',p.size,16,120,2)}
+    ${_ctrl('iso_depth','Cube Depth',p.depth,.1,2,.05)}
+    ${_ctrl('iso_op','Opacity',p.opacity,0,1,.01)}
+    <div class="toggle-row"><span class="toggle-label">Filled cubes</span><div class="toggle${p.filled?' on':''}" id="toggle_filled"></div></div>
+    ${_ctrlColor('iso_bg','Background',p.bg)}
+    ${_ctrlColor('iso_top','Top Face',p.colorTop)}
+    ${_ctrlColor('iso_left','Left Face',p.colorLeft)}
+    ${_ctrlColor('iso_right','Right Face',p.colorRight)}
+  </div>`
+}
+
+function _ctrlHolographic(){
+  const p=S.params.holographic
+  return `<div class="rp-section">
+    ${_ctrlSelect('holo_style','Style',p.style,[['foil','Holographic Foil'],['chrome','Chrome Metal'],['oilslick','Oil Slick'],['rainbow','Rainbow']])}
+    ${_ctrl('holo_angle','Angle',p.angle,0,360,1)}
+    ${_ctrl('holo_int','Intensity',p.intensity,0,1,.01)}
+    ${_ctrl('holo_grain','Grain',p.grain,0,.3,.005)}
+    ${_ctrl('holo_op','Opacity',p.opacity,0,1,.01)}
+  </div>`
+}
+
+function _ctrlCircuit(){
+  const p=S.params.circuit
+  return `<div class="rp-section">
+    ${_ctrl('cir_density','Trace Density',p.density,1,15,.5)}
+    ${_ctrl('cir_lw','Line Width',p.lineW,.5,5,.5)}
+    ${_ctrl('cir_glow','Glow Intensity',p.glowIntensity,0,1,.01)}
+    ${_ctrl('cir_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('cir_seed','Seed',p.seed,0,999,1)}
+    ${_ctrlColor('cir_bg','Background',p.bg)}
+    ${_ctrlColor('cir_tc','Trace Color',p.traceColor)}
+    ${_ctrlColor('cir_gc','Glow Color',p.glowColor)}
+  </div>`
+}
+
+function _ctrlFluid(){
+  const p=S.params.fluid
+  return `<div class="rp-section">
+    ${_ctrl('flu_scale','Scale',p.scale,1,15,.5)}
+    ${_ctrl('flu_visc','Viscosity',p.viscosity,0,1,.01)}
+    ${_ctrl('flu_turb','Turbulence',p.turbulence,0,2,.05)}
+    ${_ctrl('flu_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('flu_seed','Seed',p.seed,0,999,1)}
+    ${_ctrlColor('flu_bg','Background',p.bg)}
+    ${_ctrlColor('flu_ca','Color A',p.colorA)}
+    ${_ctrlColor('flu_cb','Color B',p.colorB)}
+    ${_ctrlColor('flu_cc','Color C',p.colorC)}
   </div>`
 }
 
@@ -1666,6 +2284,36 @@ function _mapControl(id, val){
     // material
     c_mat_type:'type',c_mat_blur:'blur',c_mat_op:'opacity',c_mat_grain:'grain',
     c_mat_col:'color',c_mat_tint:'tint',
+    // topographic
+    c_topo_levels:'levels',c_topo_scale:'scale',c_topo_lw:'lineW',
+    c_topo_op:'opacity',c_topo_seed:'seed',
+    c_topo_bg:'colorBg',c_topo_ca:'colorA',c_topo_cb:'colorB',
+    // neural
+    c_neu_count:'nodeCount',c_neu_size:'nodeSize',c_neu_radius:'connectRadius',
+    c_neu_edgeop:'edgeOpacity',c_neu_op:'opacity',c_neu_seed:'seed',
+    c_neu_bg:'bg',c_neu_nc:'nodeColor',c_neu_ec:'edgeColor',
+    // aurora gen
+    c_aug_bands:'bands',c_aug_int:'intensity',c_aug_wave:'waveAmp',
+    c_aug_op:'opacity',c_aug_seed:'seed',
+    c_aug_bg:'bg',c_aug_ca:'colorA',c_aug_cb:'colorB',c_aug_cc:'colorC',
+    // particles
+    c_par_count:'count',c_par_min:'minSize',c_par_max:'maxSize',
+    c_par_glow:'glow',c_par_op:'opacity',c_par_seed:'seed',
+    c_par_bg:'bg',c_par_ca:'colorA',c_par_cb:'colorB',
+    // isometric
+    c_iso_size:'size',c_iso_depth:'depth',c_iso_op:'opacity',
+    c_iso_bg:'bg',c_iso_top:'colorTop',c_iso_left:'colorLeft',c_iso_right:'colorRight',
+    // holographic
+    c_holo_style:'style',c_holo_angle:'angle',c_holo_int:'intensity',
+    c_holo_grain:'grain',c_holo_op:'opacity',
+    // circuit
+    c_cir_density:'density',c_cir_lw:'lineW',c_cir_glow:'glowIntensity',
+    c_cir_op:'opacity',c_cir_seed:'seed',
+    c_cir_bg:'bg',c_cir_tc:'traceColor',c_cir_gc:'glowColor',
+    // fluid
+    c_flu_scale:'scale',c_flu_visc:'viscosity',c_flu_turb:'turbulence',
+    c_flu_op:'opacity',c_flu_seed:'seed',
+    c_flu_bg:'bg',c_flu_ca:'colorA',c_flu_cb:'colorB',c_flu_cc:'colorC',
   }
   const path = map[id]; if(!path) return
   if(path.startsWith('stops.')){
@@ -1708,9 +2356,131 @@ function exportSVG(){
 }
 
 function _buildVectorSVG(w,h,gen,p){
-  if(gen==='gradient')  return _svgGradient(w,h,p)
-  if(gen==='geometric') return _svgGeometric(w,h,p)
+  if(gen==='gradient')    return _svgGradient(w,h,p)
+  if(gen==='geometric')   return _svgGeometric(w,h,p)
+  if(gen==='neural')      return _svgNeural(w,h,p)
+  if(gen==='particles')   return _svgParticles(w,h,p)
+  if(gen==='isometric')   return _svgIsometricSVG(w,h,p)
+  if(gen==='circuit')     return _svgCircuit(w,h,p)
   return null
+}
+
+// ── Neural Mesh SVG ───────────────────────────────────────────
+function _svgNeural(w,h,p){
+  const {nodeCount,nodeSize,connectRadius,edgeOpacity,nodeColor,edgeColor,bg,seed,opacity} = p
+  const nodes=[]
+  for(let i=0;i<nodeCount;i++) nodes.push({x:_seededRand(seed*1000+i*3.7)*w,y:_seededRand(seed*1000+i*3.7+500)*h,s:_seededRand(seed*1000+i*3.7+1000)})
+  const maxDist=connectRadius*Math.sqrt(w*w+h*h)
+  const lines=[], circles=[]
+  for(let i=0;i<nodes.length;i++) for(let j=i+1;j<nodes.length;j++){
+    const dx=nodes[i].x-nodes[j].x, dy=nodes[i].y-nodes[j].y
+    const dist=Math.sqrt(dx*dx+dy*dy)
+    if(dist<maxDist){
+      const a=((1-dist/maxDist)*edgeOpacity*opacity).toFixed(3)
+      lines.push(`    <line x1="${nodes[i].x.toFixed(1)}" y1="${nodes[i].y.toFixed(1)}" x2="${nodes[j].x.toFixed(1)}" y2="${nodes[j].y.toFixed(1)}" stroke="${edgeColor}" stroke-opacity="${a}" stroke-width="0.7"/>`)
+    }
+  }
+  nodes.forEach(n=>{
+    const ns=(nodeSize*(0.5+n.s*0.8)).toFixed(2)
+    circles.push(`    <circle cx="${n.x.toFixed(1)}" cy="${n.y.toFixed(1)}" r="${ns}" fill="${nodeColor}" opacity="${opacity}"/>`)
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="${bg}"/>
+  <g id="edges">\n${lines.join('\n')}\n  </g>
+  <g id="nodes">\n${circles.join('\n')}\n  </g>
+</svg>`
+}
+
+// ── Particles SVG ─────────────────────────────────────────────
+function _svgParticles(w,h,p){
+  const {count,minSize,maxSize,colorA,colorB,bg,opacity,seed} = p
+  const circles=[]
+  const n=Math.round(count)
+  for(let i=0;i<n;i++){
+    const px=(_seededRand(seed*100+i*2.731)*w).toFixed(1)
+    const py=(_seededRand(seed*100+i*2.731+500)*h).toFixed(1)
+    const t=_seededRand(seed*100+i*2.731+1000)
+    const sa=_seededRand(seed*100+i*2.731+1500)
+    const ca=hex2rgb(colorA),cb=hex2rgb(colorB)
+    const r=Math.round(lerp(ca.r,cb.r,t)),g=Math.round(lerp(ca.g,cb.g,t)),bv=Math.round(lerp(ca.b,cb.b,t))
+    const sz=lerp(minSize,maxSize,sa).toFixed(2)
+    circles.push(`    <circle cx="${px}" cy="${py}" r="${sz}" fill="rgb(${r},${g},${bv})" opacity="${opacity}"/>`)
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="${bg}"/>
+  <g id="particles">\n${circles.join('\n')}\n  </g>
+</svg>`
+}
+
+// ── Isometric SVG ─────────────────────────────────────────────
+function _svgIsometricSVG(w,h,p){
+  const {size,colorTop,colorLeft,colorRight,bg,depth,opacity,filled} = p
+  const TW=size, TH=size*0.5, cubeH=depth*TH
+  const cols=Math.ceil(w/TW)+6, rows=Math.ceil(h/TH)+6
+  const shapes=[]
+  const maxD=cols+rows
+  for(let d=0;d<=maxD;d++) for(let col=0;col<cols;col++){
+    const row=d-col; if(row<0||row>=rows) continue
+    const cx=(col-row)*TW/2+w/2, cy=(col+row)*TH/2-(rows*TH/4)
+    if(cx+TW<0||cx-TW>w||cy+TH+cubeH<0||cy-cubeH>h) continue
+    const tp=`${cx.toFixed(1)},${(cy-cubeH).toFixed(1)}`
+    const tr=`${(cx+TW/2).toFixed(1)},${(cy+TH/2-cubeH).toFixed(1)}`
+    const tb=`${cx.toFixed(1)},${(cy+TH-cubeH).toFixed(1)}`
+    const tl=`${(cx-TW/2).toFixed(1)},${(cy+TH/2-cubeH).toFixed(1)}`
+    const gb=`${cx.toFixed(1)},${(cy+TH).toFixed(1)}`
+    const gl=`${(cx-TW/2).toFixed(1)},${(cy+TH/2).toFixed(1)}`
+    const gr2=`${(cx+TW/2).toFixed(1)},${(cy+TH/2).toFixed(1)}`
+    if(filled){
+      shapes.push(`    <polygon points="${tp} ${tr} ${tb} ${tl}" fill="${colorTop}" opacity="${opacity}"/>`)
+      shapes.push(`    <polygon points="${tl} ${tb} ${gb} ${gl}" fill="${colorLeft}" opacity="${opacity}"/>`)
+      shapes.push(`    <polygon points="${tb} ${tr} ${gr2} ${gb}" fill="${colorRight}" opacity="${opacity}"/>`)
+    } else {
+      shapes.push(`    <polygon points="${tp} ${tr} ${tb} ${tl}" fill="none" stroke="${colorTop}" stroke-width="0.7" opacity="${opacity}"/>`)
+    }
+  }
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="${bg}"/>
+  <g id="isometric">\n${shapes.join('\n')}\n  </g>
+</svg>`
+}
+
+// ── Circuit Board SVG ─────────────────────────────────────────
+function _svgCircuit(w,h,p){
+  const {traceColor,bg,lineW,density,seed,opacity} = p
+  const GRID=Math.max(16,Math.round(48/density*2.5))
+  const cols=Math.ceil(w/GRID)+2, rows=Math.ceil(h/GRID)+2
+  const traces=[],nodes=new Set()
+  const numT=Math.round(density*(cols+rows)*.9)
+  for(let t=0;t<numT;t++){
+    const isH=_seededRand(seed*100+t*7.3)>.5
+    if(isH){
+      const ro=Math.floor(_seededRand(seed*200+t*3.1)*rows)
+      const c1=Math.floor(_seededRand(seed*300+t*5.7)*(cols-2))
+      const c2=Math.min(cols-1,c1+Math.ceil(_seededRand(seed*400+t*2.9)*7)+1)
+      traces.push({x1:c1*GRID,y1:ro*GRID,x2:c2*GRID,y2:ro*GRID})
+      nodes.add(`${c1},${ro}`);nodes.add(`${c2},${ro}`)
+    } else {
+      const co=Math.floor(_seededRand(seed*500+t*4.2)*cols)
+      const r1=Math.floor(_seededRand(seed*600+t*6.8)*(rows-2))
+      const r2=Math.min(rows-1,r1+Math.ceil(_seededRand(seed*700+t*1.4)*7)+1)
+      traces.push({x1:co*GRID,y1:r1*GRID,x2:co*GRID,y2:r2*GRID})
+      nodes.add(`${co},${r1}`);nodes.add(`${co},${r2}`)
+    }
+  }
+  const lines=traces.map(({x1,y1,x2,y2})=>`    <line x1="${x1}" y1="${y1}" x2="${x2}" y2="${y2}" stroke="${traceColor}" stroke-width="${lineW}" stroke-linecap="round" opacity="${opacity}"/>`)
+  const pads=[]; const padR=lineW*2.8
+  nodes.forEach(key=>{
+    const [co,ro]=key.split(',').map(Number)
+    const px=co*GRID, py=ro*GRID
+    if(px<-GRID||px>w+GRID||py<-GRID||py>h+GRID) return
+    pads.push(`    <circle cx="${px}" cy="${py}" r="${padR.toFixed(1)}" fill="${traceColor}" opacity="${opacity}"/>`)
+    pads.push(`    <circle cx="${px}" cy="${py}" r="${(padR*.45).toFixed(1)}" fill="${bg}"/>`)
+  })
+  return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
+  <rect width="${w}" height="${h}" fill="${bg}"/>
+  <g id="traces">\n${lines.join('\n')}\n  </g>
+  <g id="pads">\n${pads.join('\n')}\n  </g>
+</svg>`
 }
 
 // ── GRADIENT → native SVG gradients ──────────────────────────
@@ -2030,7 +2800,9 @@ function selectGen(gen){
   document.getElementById('rp-title').textContent =
     {gradient:'Gradient',geometric:'Geometric',noise:'Noise & Organic',
      flowfield:'Flow Field',material:'Material',reference:'Reference Image',
-     presets:'Presets'}[gen]||gen
+     presets:'Presets',topographic:'Topographic',neural:'Neural Mesh',
+     auroragen:'Aurora',particles:'Particle Field',isometric:'Isometric',
+     holographic:'Holographic',circuit:'Circuit Board',fluid:'Fluid'}[gen]||gen
   buildControls()
   _updateButtonVisibility(gen)
 }
@@ -2041,14 +2813,15 @@ function _updateButtonVisibility(gen){
   const isGeo  = gen === 'geometric'
   const isGrad = gen === 'gradient'
   const isTileable = isGeo
+  const svgGens = new Set(['gradient','geometric','neural','particles','isometric','circuit'])
 
   // Tile preview — only geometric patterns tile meaningfully
   document.getElementById('btn-tilePreview').style.display = isTileable ? '' : 'none'
   // CSS copy — only gradient produces real CSS
   document.getElementById('btn-copyCSS').style.display = isGrad ? '' : 'none'
-  // SVG export — works for gradient + geometric
-  document.getElementById('btn-copySVG').style.display = (isGrad||isGeo) ? '' : 'none'
-  // Shuffle + Variations — clear composite first, always available
+  // SVG export — vector-capable generators
+  document.getElementById('btn-copySVG').style.display = svgGens.has(gen) ? '' : 'none'
+  // Shuffle + Variations — not in composite mode
   document.getElementById('btn-shuffle').style.display = isComposite ? 'none' : ''
   document.getElementById('btn-variations').style.display = isComposite ? 'none' : ''
 }
