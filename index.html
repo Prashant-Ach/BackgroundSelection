@@ -202,9 +202,10 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <button class="tb-btn" id="btn-safeZone">📐 Safe Zones</button>
   <button class="tb-btn" id="btn-tilePreview">⊞ Tile</button>
   <div class="tb-sep"></div>
+  <button class="tb-btn" id="btn-phonePreview">📱 Preview</button>
   <button class="tb-btn" id="btn-copyCSS">📋 CSS</button>
   <button class="tb-btn" id="btn-copySVG">📄 SVG</button>
-  <button class="tb-btn primary" id="btn-export">⬇ Export PNG</button>
+  <button class="tb-btn primary" id="btn-export">⬇ Export</button>
 </div>
 
 <!-- ── LEFT NAV ── -->
@@ -307,18 +308,18 @@ const S = {
   palette: [],
   composite: null,   // when set by AI, overrides single-generator render
   params: {
-    gradient: { type:'linear', stops:['#6366f1','#ec4899','#06b6d4'], angle:135, radX:.5, radY:.5, cx:.5, cy:.5, opacity:1 },
-    geometric: { type:'hex', size:48, gap:2, rotation:0, lineW:1.5, colorA:'#6366f1', colorB:'#0b0b10', opacity:.25, filled:false },
-    noise: { type:'fbm', scale:4, octaves:5, turbulence:.5, colorA:'#1a1a2e', colorB:'#7c3aed', colorC:'#ec4899', opacity:1, seed:0 },
-    flowfield: { type:'curl', count:2000, stepLen:3, lineW:1, speed:.8, colorA:'#6366f1', colorB:'#06b6d4', bg:'#050510', opacity:.7, seed:0 },
-    material: { type:'glassmorphism', blur:12, opacity:.15, color:'#ffffff', tint:'#6366f1', grain:.08 },
+    gradient: { type:'aurora', stops:['#6366f1','#ec4899','#06b6d4'], meshPts:['#1a1a2e','#6366f1','#7c3aed','#0a1628','#4338ca','#1e3a5f','#050510','#06b6d4','#0e7490'], angle:135, radX:.5, radY:.5, cx:.5, cy:.5, opacity:1, grain:.03 },
+    geometric: { type:'dotgrid', size:32, gap:2, rotation:0, lineW:1, colorA:'#6366f1', colorB:'#0b0b10', opacity:.18, filled:false, blur:0 },
+    noise: { type:'marble', scale:4, octaves:6, turbulence:1.2, colorA:'#f5f0eb', colorB:'#8b7355', colorC:'#d4c4aa', opacity:1, seed:0, warp:1.5, contrast:1.0, direction:0 },
+    flowfield: { type:'magnetic', count:1500, stepLen:2.5, lineW:.8, speed:.9, colorA:'#6366f1', colorB:'#06b6d4', bg:'#050510', opacity:.65, seed:0, colorMode:'gradient', trailLen:25, poles:2 },
+    material: { type:'glassmorphism', blur:14, opacity:.18, color:'#ffffff', tint:'#6366f1', grain:.07, bg:'#6366f1', bgB:'#ec4899', elevation:12, lightAngle:135 },
     topographic: { colorBg:'#0a1628', colorA:'#1e3a5f', colorB:'#00b4d8', levels:15, scale:4, lineW:1.5, opacity:.85, filled:true, seed:0 },
-    neural: { nodeCount:80, nodeSize:3, connectRadius:.22, edgeOpacity:.35, nodeColor:'#6366f1', edgeColor:'#06b6d4', bg:'#050510', opacity:.9, seed:0 },
-    auroragen: { colorA:'#00c6a7', colorB:'#7c3aed', colorC:'#06b6d4', bg:'#030b18', intensity:.8, waveAmp:.12, bands:4, opacity:1, seed:0 },
-    particles: { count:800, minSize:.8, maxSize:3.5, colorA:'#6366f1', colorB:'#ec4899', bg:'#050510', glow:2, opacity:.85, seed:0 },
-    isometric: { size:52, colorTop:'#6366f1', colorLeft:'#1e1b4b', colorRight:'#312e81', bg:'#0b0b10', depth:.7, opacity:1, filled:true, seed:0 },
+    neural: { nodeCount:90, nodeSize:3, connectRadius:.22, edgeOpacity:.35, nodeColor:'#6366f1', edgeColor:'#06b6d4', bg:'#050510', opacity:.9, seed:0, layers:1, pulse:false },
+    auroragen: { colorA:'#00c6a7', colorB:'#7c3aed', colorC:'#ec4899', colorD:'#06b6d4', bg:'#030b18', intensity:.85, waveAmp:.12, bands:5, opacity:1, seed:0, style:'ios', blobSize:.7 },
+    particles: { count:900, minSize:.8, maxSize:3.5, colorA:'#6366f1', colorB:'#ec4899', bg:'#050510', glow:2.5, opacity:.85, seed:0, depthLayers:3 },
+    isometric: { type:'cubes', size:48, gap:1, lineW:0.8, rotation:0, colorTop:'#6366f1', colorLeft:'#1e1b4b', colorRight:'#312e81', bg:'#0b0b10', depth:.7, lightAngle:135, shadowInt:.45, jitter:0, gradOverlay:.3, noiseDistort:0, opacity:1, seed:0, heightVariance:.5 },
     holographic: { style:'foil', angle:135, intensity:.9, grain:.03, opacity:1, hueShift:0 },
-    circuit: { traceColor:'#22d3ee', bg:'#050a10', lineW:1.5, density:5, glowColor:'#00ff88', glowIntensity:.6, seed:0, opacity:.9 },
+    circuit: { traceColor:'#22d3ee', bg:'#050a10', lineW:1.5, density:5, glowColor:'#00ff88', glowIntensity:.6, seed:0, opacity:.9, components:true },
     fluid: { colorA:'#6366f1', colorB:'#ec4899', colorC:'#06b6d4', bg:'#050510', viscosity:.6, scale:4, turbulence:.8, opacity:1, seed:0 },
   },
 }
@@ -366,7 +367,7 @@ function avgColor(imageData, x, y, w, h) {
 // ─── GRADIENT ───────────────────────────────────────────────
 function genGradient(c, w, h, p) {
   c.clearRect(0,0,w,h)
-  const {type,stops,angle,radX,radY,cx,cy} = p
+  const {type,stops,angle,cx,cy,grain} = p
 
   if (type === 'linear') {
     const rad = angle * Math.PI/180
@@ -379,7 +380,7 @@ function genGradient(c, w, h, p) {
     c.fillStyle = grd; c.fillRect(0,0,w,h)
 
   } else if (type === 'radial') {
-    const grd = c.createRadialGradient(w*cx,h*cy,0, w*cx,h*cy, Math.sqrt(w*w+h*h)*.7)
+    const grd = c.createRadialGradient(w*cx,h*cy,0, w*cx,h*cy, Math.sqrt(w*w+h*h)*.75)
     stops.forEach((s,i)=>grd.addColorStop(i/Math.max(stops.length-1,1), s))
     c.fillStyle = grd; c.fillRect(0,0,w,h)
 
@@ -397,41 +398,71 @@ function genGradient(c, w, h, p) {
     }
 
   } else if (type === 'mesh') {
-    // mesh gradient: 4-corner radials blended with 'lighter'
-    const corners = [
-      {x:0, y:0, c:stops[0]||'#000'}, {x:w, y:0, c:stops[1]||'#000'},
-      {x:0, y:h, c:stops[2]||'#000'}, {x:w, y:h, c:stops[3]||'#000'}
+    // True 9-point bilinear mesh gradient
+    const pts = p.meshPts && p.meshPts.length >= 9 ? p.meshPts : [
+      stops[0]||'#1a1a2e', stops[1]||'#6366f1', stops[2]||'#7c3aed',
+      stops[0]||'#0a1628', stops[1]||'#4338ca', stops[2]||'#1e3a5f',
+      '#050510', stops[2]||'#06b6d4', '#0e7490'
     ]
-    c.fillStyle = stops[0]||'#000'; c.fillRect(0,0,w,h)
-    c.save(); c.globalCompositeOperation = 'lighter'
-    const r = Math.sqrt(w*w+h*h)
-    corners.forEach(({x,y,c:col})=>{
-      const {r:cr,g,b}=hex2rgb(col)
-      const grd=c.createRadialGradient(x,y,0,x,y,r)
-      grd.addColorStop(0,`rgba(${cr},${g},${b},.8)`)
-      grd.addColorStop(1,`rgba(${cr},${g},${b},0)`)
-      c.fillStyle=grd; c.fillRect(0,0,w,h)
-    }); c.restore()
+    _meshBilinear(c, w, h, pts)
 
   } else if (type === 'aurora') {
-    // dark base + multiple soft blobs
-    c.fillStyle = stops[0]||'#050a14'; c.fillRect(0,0,w,h)
-    const blobs = [
-      {x:.25,y:.4,r:.55,c:stops[1]||'#00c6a7'},
-      {x:.75,y:.6,r:.55,c:stops[2]||'#7c3aed'},
-      {x:.5,y:.2,r:.45,c:stops[3]||'#06b6d4'},
+    // Production-quality aurora: large overlapping radial blobs via screen blend
+    const bgCol = stops[0] || '#050a14'
+    c.fillStyle = bgCol; c.fillRect(0,0,w,h)
+    const blobDefs = [
+      {x:.28, y:.45, r:.72, col: stops[1]||'#00c6a7', a:.5},
+      {x:.72, y:.55, r:.68, col: stops[2]||'#7c3aed', a:.45},
+      {x:.5,  y:.25, r:.58, col: stops[3]||'#06b6d4', a:.4},
+      {x:.15, y:.7,  r:.5,  col: stops[1]||'#00c6a7', a:.3},
+      {x:.85, y:.3,  r:.5,  col: stops[2]||'#7c3aed', a:.28},
     ]
     c.save(); c.globalCompositeOperation='screen'
-    blobs.forEach(b=>{
-      const {r:cr,g,b:cb}=hex2rgb(b.c)
-      const grd=c.createRadialGradient(w*b.x,h*b.y,0,w*b.x,h*b.y,Math.sqrt(w*w+h*h)*b.r)
-      grd.addColorStop(0,`rgba(${cr},${g},${cb},.35)`)
-      grd.addColorStop(1,`rgba(${cr},${g},${cb},0)`)
+    blobDefs.forEach(b=>{
+      const {r:cr,g,b:cb}=hex2rgb(b.col)
+      const br = b.r * Math.sqrt(w*w+h*h)
+      const grd=c.createRadialGradient(w*b.x,h*b.y,0, w*b.x,h*b.y, br)
+      grd.addColorStop(0,   `rgba(${cr},${g},${cb},${b.a})`)
+      grd.addColorStop(0.35,`rgba(${cr},${g},${cb},${(b.a*.5).toFixed(2)})`)
+      grd.addColorStop(1,   `rgba(${cr},${g},${cb},0)`)
       c.fillStyle=grd; c.fillRect(0,0,w,h)
     }); c.restore()
-    _applyGrain(c,w,h,.04)
-    _applyVignette(c,w,h,.6)
+    _applyGrain(c,w,h, grain||.04)
+    _applyVignette(c,w,h,.55)
+    return
   }
+  if (grain > 0) _applyGrain(c,w,h,grain)
+}
+
+// True 9-point bilinear mesh gradient
+function _meshBilinear(c, w, h, pts) {
+  const STEP = 2
+  const idata = c.createImageData(w, h)
+  const d = idata.data
+  const cols = pts.map(p => hex2rgb(p))
+  const sm = t => t*t*(3-2*t) // smoothstep
+  for(let py = 0; py < h; py += STEP) {
+    for(let px = 0; px < w; px += STEP) {
+      const u = px / Math.max(w-1,1)
+      const v = py / Math.max(h-1,1)
+      const cU = Math.min(Math.floor(u*2), 1)
+      const cV = Math.min(Math.floor(v*2), 1)
+      const lu = sm(u*2 - cU)
+      const lv = sm(v*2 - cV)
+      const P00=cols[cV*3+cU]||cols[0], P10=cols[cV*3+cU+1]||cols[1]
+      const P01=cols[(cV+1)*3+cU]||cols[3], P11=cols[(cV+1)*3+cU+1]||cols[4]
+      const r=Math.round(lerp(lerp(P00.r,P10.r,lu),lerp(P01.r,P11.r,lu),lv))
+      const g=Math.round(lerp(lerp(P00.g,P10.g,lu),lerp(P01.g,P11.g,lu),lv))
+      const b=Math.round(lerp(lerp(P00.b,P10.b,lu),lerp(P01.b,P11.b,lu),lv))
+      for(let dy=0;dy<STEP&&py+dy<h;dy++) for(let dx=0;dx<STEP&&px+dx<w;dx++){
+        const i=((py+dy)*w+(px+dx))*4
+        d[i]=r; d[i+1]=g; d[i+2]=b; d[i+3]=255
+      }
+    }
+  }
+  const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h
+  tmp.getContext('2d').putImageData(idata,0,0)
+  c.drawImage(tmp,0,0)
 }
 
 function _interpStops(stops, t) {
@@ -615,87 +646,193 @@ let _simplex = null
 function getSimplex(){if(!_simplex&&window.SimplexNoise){try{_simplex=new window.SimplexNoise.SimplexNoise()}catch(e){_simplex={noise2D:(x,y)=>Math.sin(x*1.7+y*.9)*.5+.5}}}return _simplex}
 
 function genNoise(c, w, h, p) {
-  const {type,scale,octaves,colorA,colorB,colorC,opacity,seed} = p
+  const {type,scale,octaves,colorA,colorB,colorC,opacity,seed,warp,contrast,direction} = p
   const sx=getSimplex()
   const ca=hex2rgb(colorA), cb=hex2rgb(colorB), cc=hex2rgb(colorC||colorB)
+  const STEP=2
   const idata = c.createImageData(w,h)
   const d = idata.data
-  const sc = scale/10
-  const off = seed * 100
+  const sc = (scale||4)/10
+  const off = (seed||0) * 100
+  const warpAmt = warp !== undefined ? warp : 1.5
+  const contrastAmt = contrast !== undefined ? contrast : 1.0
+  const dirRad = (direction||0) * Math.PI / 180
 
-  for(let y=0;y<h;y++) for(let x=0;x<w;x++){
-    const nx=(x/w)*sc*10+off, ny=(y/h)*sc*10+off
+  function nfbm(nx,ny,oct){
+    let v=0,amp=.5,freq=1
+    for(let o=0;o<oct;o++){
+      v+=sx?sx.noise2D(nx*freq,ny*freq)*amp:Math.sin(nx*freq+ny*freq)*amp*.5
+      amp*=.5; freq*=2
+    }
+    return v*.5+.5
+  }
+
+  for(let y=0;y<h;y+=STEP) for(let x=0;x<w;x+=STEP){
+    let nx=(x/w)*sc*10+off, ny=(y/h)*sc*10+off
+
+    // Domain warp
+    if(warpAmt>0 && sx){
+      const wx=sx.noise2D(nx+1.7, ny+9.2)*warpAmt
+      const wy=sx.noise2D(nx+8.3, ny+2.8)*warpAmt
+      nx+=wx; ny+=wy
+    }
+
     let v=0
 
     if(type==='fbm'||type==='perlin'){
-      let amp=.5, freq=1
-      for(let o=0;o<octaves;o++){
-        v+=sx?(sx.noise2D(nx*freq,ny*freq)*amp):Math.sin(nx*freq+ny*freq)*amp*.5
-        amp*=.5; freq*=2
-      }
-      v=v*.5+.5
+      v=nfbm(nx,ny,octaves)
     } else if(type==='turbulence'){
-      let amp=.5, freq=1
+      let amp=.5,freq=1
       for(let o=0;o<octaves;o++){
         const n=sx?sx.noise2D(nx*freq,ny*freq):Math.sin(nx*freq+ny*freq)*.5
         v+=Math.abs(n)*amp; amp*=.5; freq*=2
       }
       v=clamp(v)
     } else if(type==='marble'){
-      let n=0, amp=.5, freq=1
+      // Domain-warped marble veins
+      let n=0,amp=.5,freq=1
       for(let o=0;o<octaves;o++){
         n+=sx?sx.noise2D(nx*freq,ny*freq)*amp:Math.sin(nx*freq+ny*freq)*amp*.5
         amp*=.5; freq*=2
       }
-      v=Math.sin(nx*2+n*p.turbulence*8)*.5+.5
+      const veinDir = Math.cos(dirRad)*nx + Math.sin(dirRad)*ny
+      v=Math.sin(veinDir*2.5 + n*(p.turbulence||1.2)*6)*.5+.5
+      // Add secondary vein system
+      const v2=Math.sin(veinDir*1.3 + n*(p.turbulence||1.2)*3 + 2.1)*.5+.5
+      v=clamp(v*.7+v2*.3)
+    } else if(type==='brushed'){
+      // Directional brushed metal
+      const bx=(x/w)*sc*10 + off
+      const by=(y/h)*sc*2  + off
+      let n=0,amp=.5,freq=1
+      for(let o=0;o<Math.min(octaves,4);o++){
+        n+=sx?sx.noise2D(bx*freq*0.3,by*freq)*amp:Math.sin(bx*freq*.3+by*freq)*amp*.5
+        amp*=.5; freq*=2.5
+      }
+      v=n*.5+.5
+    } else if(type==='clouds'){
+      let n=0,amp=.5,freq=1
+      for(let o=0;o<octaves;o++){
+        n+=sx?sx.noise2D(nx*freq,ny*freq)*amp:Math.sin(nx*freq+ny*freq)*amp*.5
+        amp*=.5; freq*=2
+      }
+      v=clamp(n*.5+.5)
+      v=Math.pow(v,0.6) // boost bright areas for puffy look
+    } else if(type==='smoke'){
+      let n=0,amp=.5,freq=1
+      for(let o=0;o<octaves;o++){
+        n+=Math.abs(sx?sx.noise2D(nx*freq,ny*freq):Math.sin(nx*freq+ny*freq)*.5)*amp
+        amp*=.5; freq*=2
+      }
+      v=1-clamp(n*1.2)
+      v=Math.pow(v,1.8)
+    } else if(type==='watercolor'){
+      // Layered warped noise with soft blending
+      let n1=nfbm(nx,ny,3)
+      let n2=nfbm(nx*1.5+n1*2,ny*1.5+n1*2,3)
+      v=nfbm(nx+n2,ny+n2*1.3,octaves)
+      v=clamp(v*.9+.05)
     } else if(type==='wood'){
-      const n=(sx?sx.noise2D(nx,ny):Math.sin(nx+ny)*.5)*p.turbulence*3
+      const n=(sx?sx.noise2D(nx,ny):Math.sin(nx+ny)*.5)*(p.turbulence||.6)*3
       const rings=Math.sqrt((x/w-.5)**2+(y/h-.5)**2)*scale
       v=Math.sin((rings+n)*Math.PI*2)*.5+.5
-    } else if(type==='fabric'){
-      const wx=Math.sin(x*.15*sc*5)*.5+.5
-      const wy=Math.sin(y*.15*sc*5+Math.PI/4)*.5+.5
-      const n=sx?sx.noise2D(nx*.2,ny*.2)*.15:0
-      v=clamp((wx+wy)*.5+n)
+    } else if(type==='linen'){
+      const wx2=Math.sin(x*.12*sc*5+sx?sx.noise2D(nx*.3,ny*.05)*.4:0)*.5+.5
+      const wy2=Math.sin(y*.12*sc*5+sx?sx.noise2D(nx*.05,ny*.3)*.4:0)*.5+.5
+      v=clamp((wx2+wy2)*.5)
     } else if(type==='paper'){
-      let n=0, amp=.5, freq=3
+      let n=0,amp=.5,freq=3
       for(let o=0;o<4;o++){
-        n+=sx?sx.noise2D(nx*freq,ny*freq)*amp:Math.random()*amp
+        n+=sx?sx.noise2D(nx*freq,ny*freq)*amp:Math.sin(nx*freq+ny*freq+o)*.3*amp
         amp*=.5; freq*=2.1
       }
-      v=clamp(n*.3+.7)
+      v=clamp(n*.25+.72)
+    } else {
+      v=nfbm(nx,ny,octaves)
     }
 
-    const t = clamp(v)
-    const t2 = t<.5 ? t*2 : (t-.5)*2
-    const mid = t<.5 ? ca : cb
-    const end = t<.5 ? cb : cc
-    const i=(y*w+x)*4
-    d[i  ]=Math.round(lerp(mid.r,end.r,t2))
-    d[i+1]=Math.round(lerp(mid.g,end.g,t2))
-    d[i+2]=Math.round(lerp(mid.b,end.b,t2))
-    d[i+3]=Math.round(255*opacity)
+    // Contrast adjustment
+    if(contrastAmt!==1.0){
+      v=clamp((v-.5)*contrastAmt+.5)
+    }
+
+    const t=clamp(v)
+    const t2=t<.5?t*2:(t-.5)*2
+    const mid=t<.5?ca:cb
+    const end=t<.5?cb:cc
+    for(let dy=0;dy<STEP&&y+dy<h;dy++) for(let dx=0;dx<STEP&&x+dx<w;dx++){
+      const i=((y+dy)*w+(x+dx))*4
+      d[i  ]=Math.round(lerp(mid.r,end.r,t2))
+      d[i+1]=Math.round(lerp(mid.g,end.g,t2))
+      d[i+2]=Math.round(lerp(mid.b,end.b,t2))
+      d[i+3]=Math.round(255*opacity)
+    }
   }
   const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h
   tmp.getContext('2d').putImageData(idata,0,0)
   c.save(); c.drawImage(tmp,0,0); c.restore()
+  // Brushed metal gets a sheen overlay
+  if(type==='brushed'){
+    const rad=dirRad
+    const g2=c.createLinearGradient(w/2-Math.cos(rad)*w,h/2-Math.sin(rad)*h,w/2+Math.cos(rad)*w,h/2+Math.sin(rad)*h)
+    g2.addColorStop(0,'rgba(255,255,255,0)'); g2.addColorStop(.4,'rgba(255,255,255,.12)'); g2.addColorStop(.6,'rgba(255,255,255,.06)'); g2.addColorStop(1,'rgba(0,0,0,.08)')
+    c.fillStyle=g2; c.fillRect(0,0,w,h)
+  }
 }
 
 // ─── FLOW FIELDS ────────────────────────────────────────────
 function genFlowField(c, w, h, p) {
-  const {type,count,stepLen,lineW,speed,colorA,colorB,bg,opacity,seed} = p
+  const {type,count,stepLen,lineW,speed,colorA,colorB,bg,opacity,seed,colorMode,trailLen,poles} = p
   c.fillStyle=bg; c.fillRect(0,0,w,h)
   const sx=getSimplex()
   const ca=hex2rgb(colorA), cb=hex2rgb(colorB)
-  c.lineWidth=lineW
-  const NS=seed*.1
+  c.lineWidth=lineW||1
+  const NS=(seed||0)*.1
+  const nPoles=Math.max(1,Math.round(poles||2))
+  const steps=Math.round(trailLen||25)
 
-  function angle(x,y){
+  // Build pole positions deterministically
+  const poleList=[]
+  for(let i=0;i<nPoles;i++){
+    poleList.push({
+      x:_seededRand(seed*1000+i*7.3)*w,
+      y:_seededRand(seed*1000+i*7.3+500)*h,
+      sign:(i%2===0)?1:-1
+    })
+  }
+
+  function fieldAngle(x,y){
     const nx=x/w*3, ny=y/h*3
     if(type==='curl'){
       const n1=sx?sx.noise2D(nx+NS,ny+NS):Math.sin(nx+ny+NS)
       const n2=sx?sx.noise2D(nx+.01+NS,ny+NS):Math.sin(nx+.01+ny+NS)
       return (n2-n1)*Math.PI*4
+    } else if(type==='magnetic'){
+      let fx=0,fy=0
+      poleList.forEach(pl=>{
+        const dx=x-pl.x, dy=y-pl.y
+        const dist2=Math.max(600,dx*dx+dy*dy)
+        const str=pl.sign*w*0.12/dist2
+        fx+=dy*str; fy-=dx*str
+      })
+      return Math.atan2(fy,fx)
+    } else if(type==='wind'){
+      const n=sx?sx.noise2D(nx*.5+NS,ny*.5):0
+      return Math.sin(ny*2)*0.35 + n*0.5
+    } else if(type==='vortex'){
+      let fx=0,fy=0
+      poleList.forEach((pl,i)=>{
+        const dx=x-pl.x, dy=y-pl.y
+        const dist=Math.max(20,Math.sqrt(dx*dx+dy*dy))
+        const str=pl.sign*w*0.08/dist
+        fx+=-dy/dist*str; fy+=dx/dist*str
+      })
+      return Math.atan2(fy,fx)
+    } else if(type==='waves'){
+      const d1=Math.sqrt((x-w*.25)**2+(y-h*.5)**2)
+      const d2=Math.sqrt((x-w*.75)**2+(y-h*.5)**2)
+      const v=Math.sin(d1*0.045)+Math.sin(d2*0.045)
+      return v*Math.PI*.8
     } else if(type==='sine'){
       return Math.sin(nx*Math.PI)*Math.PI
     } else if(type==='radial'){
@@ -706,19 +843,34 @@ function genFlowField(c, w, h, p) {
   }
 
   c.save(); c.globalAlpha=opacity
+  const mode=colorMode||'gradient'
   for(let i=0;i<count;i++){
     let x=rand(0,w), y=rand(0,h)
     const t=i/count
-    const r=Math.round(lerp(ca.r,cb.r,t)), g=Math.round(lerp(ca.g,cb.g,t)), b=Math.round(lerp(ca.b,cb.b,t))
-    c.strokeStyle=`rgb(${r},${g},${b})`
     c.beginPath(); c.moveTo(x,y)
-    for(let s=0;s<20;s++){
-      const a=angle(x,y)
+    for(let s=0;s<steps;s++){
+      const a=fieldAngle(x,y)
       x+=Math.cos(a)*stepLen*speed; y+=Math.sin(a)*stepLen*speed
-      if(x<0||x>w||y<0||y>h) break
+      if(x<-10||x>w+10||y<-10||y>h+10) break
       c.lineTo(x,y)
+      // Color mode: apply per-segment
+      if(mode==='huePos'){
+        const hue=((x/w)*360)%360
+        c.strokeStyle=`hsla(${hue},80%,65%,1)`
+        c.stroke(); c.beginPath(); c.moveTo(x,y)
+      } else if(mode==='rainbow'){
+        const hue=((t+s/steps)%1)*360
+        c.strokeStyle=`hsla(${hue},85%,60%,1)`
+        c.stroke(); c.beginPath(); c.moveTo(x,y)
+      }
     }
-    c.stroke()
+    if(mode==='gradient'||mode==='single'){
+      const r2=Math.round(lerp(ca.r,cb.r,t)), g2=Math.round(lerp(ca.g,cb.g,t)), b2=Math.round(lerp(ca.b,cb.b,t))
+      c.strokeStyle=`rgb(${r2},${g2},${b2})`
+      c.stroke()
+    } else if(mode!=='huePos'&&mode!=='rainbow'){
+      c.strokeStyle=colorA; c.stroke()
+    }
   }
   c.restore()
   _applyVignette(c,w,h,.5)
@@ -729,8 +881,9 @@ function genMaterial(c, w, h, p) {
   const {type} = p
   switch(type){
     case 'glassmorphism': _matGlass(c,w,h,p); break
+    case 'neumorphism':   _matNeumorphism(c,w,h,p); break
     case 'carbon':        _matCarbon(c,w,h,p); break
-    case 'brushed':       _matBrushed(c,w,h,p); break
+    case 'velvet':        _matVelvet(c,w,h,p); break
     case 'bokeh':         _matBokeh(c,w,h,p); break
     case 'linen':         _matLinen(c,w,h,p); break
     case 'leather':       _matLeather(c,w,h,p); break
@@ -738,91 +891,129 @@ function genMaterial(c, w, h, p) {
   }
 }
 function _matGlass(c,w,h,p){
-  // frosted glass: gradient bg + blur-ish noise overlay + border
-  const g=c.createLinearGradient(0,0,w,h)
-  const {r,g:gv,b}=hex2rgb(p.tint)
-  g.addColorStop(0,`rgba(${r},${gv},${b},.8)`); g.addColorStop(1,`rgba(${r},${gv},${b},.3)`)
+  // Rich frosted glass: gradient bg + noise frost + border highlight
+  const bgA=p.bg||p.tint||'#6366f1', bgB=p.bgB||'#ec4899'
+  const angle=(p.lightAngle||135)*Math.PI/180
+  const len=Math.sqrt(w*w+h*h)/2
+  const g=c.createLinearGradient(w/2-Math.cos(angle)*len,h/2-Math.sin(angle)*len,w/2+Math.cos(angle)*len,h/2+Math.sin(angle)*len)
+  const {r:ar,g:ag,b:ab}=hex2rgb(bgA), {r:br,g:bg2,b:bb}=hex2rgb(bgB)
+  g.addColorStop(0,`rgb(${ar},${ag},${ab})`); g.addColorStop(1,`rgb(${br},${bg2},${bb})`)
   c.fillStyle=g; c.fillRect(0,0,w,h)
-  // noise overlay for frosted effect
-  const idata=c.createImageData(w,h); const d=idata.d||idata.data
-  for(let i=0;i<d.length;i+=4){d[i]=d[i+1]=d[i+2]=Math.random()*255;d[i+3]=Math.round(p.grain*40)}
-  const tmp=document.createElement('canvas'); tmp.width=w; tmp.height=h
-  tmp.getContext('2d').putImageData(idata,0,0)
-  c.save(); c.globalCompositeOperation='overlay'; c.globalAlpha=.15; c.drawImage(tmp,0,0); c.restore()
-  // inner border glow
-  c.save(); c.strokeStyle=`rgba(255,255,255,${p.opacity})`; c.lineWidth=1.5
-  c.strokeRect(1,1,w-2,h-2); c.restore()
-  _applyGrain(c,w,h,p.grain)
+  // White tint overlay for frosted look
+  const {r:tr,g:tg,b:tb}=hex2rgb(p.color||'#ffffff')
+  c.save(); c.globalAlpha=p.opacity||.18
+  c.fillStyle=`rgb(${tr},${tg},${tb})`; c.fillRect(0,0,w,h)
+  c.restore()
+  // Frost noise
+  _applyGrain(c,w,h,p.grain||.07)
+  // Top highlight border
+  const elev=p.elevation||12
+  c.save()
+  c.strokeStyle=`rgba(255,255,255,${0.25+elev/80})`; c.lineWidth=1.2
+  c.strokeRect(.8,.8,w-1.6,h-1.6)
+  // Bottom shadow border
+  c.strokeStyle=`rgba(0,0,0,0.18)`; c.lineWidth=1
+  c.strokeRect(1,1,w-2,h-2)
+  c.restore()
+}
+function _matNeumorphism(c,w,h,p){
+  const base=p.color||'#e0e5ec'
+  const {r,g,b}=hex2rgb(base)
+  c.fillStyle=base; c.fillRect(0,0,w,h)
+  // Subtle surface gradient (top-left bright → bottom-right dark)
+  const sg=c.createLinearGradient(0,0,w,h)
+  sg.addColorStop(0,`rgba(255,255,255,0.18)`); sg.addColorStop(1,`rgba(0,0,0,0.12)`)
+  c.fillStyle=sg; c.fillRect(0,0,w,h)
+  // Light shadow (top-left glow)
+  const lr=Math.min(r+35,255),lg=Math.min(g+35,255),lb=Math.min(b+35,255)
+  const lightGrd=c.createRadialGradient(w*.05,h*.05,0,w*.5,h*.5,Math.sqrt(w*w+h*h)*.75)
+  lightGrd.addColorStop(0,`rgba(${lr},${lg},${lb},0.7)`); lightGrd.addColorStop(1,`rgba(${lr},${lg},${lb},0)`)
+  c.fillStyle=lightGrd; c.fillRect(0,0,w,h)
+  // Dark shadow (bottom-right)
+  const dr=Math.max(r-35,0),dg=Math.max(g-35,0),db2=Math.max(b-35,0)
+  const darkGrd=c.createRadialGradient(w*.95,h*.95,0,w*.5,h*.5,Math.sqrt(w*w+h*h)*.75)
+  darkGrd.addColorStop(0,`rgba(${dr},${dg},${db2},0.5)`); darkGrd.addColorStop(1,`rgba(${dr},${dg},${db2},0)`)
+  c.fillStyle=darkGrd; c.fillRect(0,0,w,h)
+  _applyGrain(c,w,h,.02)
+}
+function _matVelvet(c,w,h,p){
+  const base=p.tint||'#4c1d95'
+  const {r,g,b}=hex2rgb(base)
+  c.fillStyle=base; c.fillRect(0,0,w,h)
+  // Directional fiber texture
+  c.save(); c.globalAlpha=.12
+  for(let y=0;y<h;y+=1){
+    const jitter=(Math.random()-.5)*3
+    const bright=Math.sin(y*.08+jitter)*.5+.5
+    const v=Math.round(bright*60)
+    c.strokeStyle=`rgba(${Math.min(r+v,255)},${Math.min(g+v,255)},${Math.min(b+v,255)},1)`
+    c.lineWidth=1
+    c.beginPath(); c.moveTo(0,y); c.lineTo(w,y+jitter); c.stroke()
+  }
+  c.restore()
+  // Directional sheen
+  const sg=c.createLinearGradient(0,0,w*.6,h*.6)
+  sg.addColorStop(0,`rgba(255,255,255,.18)`); sg.addColorStop(.4,`rgba(255,255,255,.06)`); sg.addColorStop(1,'rgba(0,0,0,.15)')
+  c.fillStyle=sg; c.fillRect(0,0,w,h)
+  _applyGrain(c,w,h,.03)
+  _applyVignette(c,w,h,.4)
 }
 function _matCarbon(c,w,h,p){
   const s=Math.max(p.blur||8,4)
   for(let y=0;y<h;y+=s) for(let x=0;x<w;x+=s){
     const v=(x+y)%(s*2)<s
-    c.fillStyle=v?'#1a1a1a':'#222'; c.fillRect(x,y,s/2,s/2)
-    c.fillStyle=v?'#222':'#1a1a1a'; c.fillRect(x+s/2,y,s/2,s/2)
-    c.fillStyle=v?'#1a1a1a':'#2a2a2a'; c.fillRect(x,y+s/2,s/2,s/2)
-    c.fillStyle=v?'#2a2a2a':'#1a1a1a'; c.fillRect(x+s/2,y+s/2,s/2,s/2)
+    // 4-quadrant shading for more realistic weave
+    c.fillStyle=v?'#1c1c1c':'#252525'; c.fillRect(x,y,s/2,s/2)
+    c.fillStyle=v?'#252525':'#1c1c1c'; c.fillRect(x+s/2,y,s/2,s/2)
+    c.fillStyle=v?'#1a1a1a':'#2e2e2e'; c.fillRect(x,y+s/2,s/2,s/2)
+    c.fillStyle=v?'#2e2e2e':'#1a1a1a'; c.fillRect(x+s/2,y+s/2,s/2,s/2)
+    // Highlight corner
+    c.fillStyle='rgba(255,255,255,.04)'; c.fillRect(x,y,s/2,2)
   }
-  // sheen
   const g=c.createLinearGradient(0,0,0,h)
-  g.addColorStop(0,'rgba(255,255,255,.04)'); g.addColorStop(.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(0,0,0,.1)')
+  g.addColorStop(0,'rgba(255,255,255,.07)'); g.addColorStop(.4,'rgba(255,255,255,.02)'); g.addColorStop(1,'rgba(0,0,0,.14)')
   c.fillStyle=g; c.fillRect(0,0,w,h)
-}
-function _matBrushed(c,w,h,p){
-  const base=hex2rgb(p.color||'#888')
-  c.fillStyle=`rgb(${base.r},${base.g},${base.b})`; c.fillRect(0,0,w,h)
-  // horizontal brush strokes
-  for(let y=0;y<h;y++){
-    const v=Math.round(base.r+(Math.random()-.5)*20)
-    c.strokeStyle=`rgba(${v},${v},${v},.08)`; c.lineWidth=1
-    c.beginPath(); c.moveTo(0,y); c.lineTo(w,y); c.stroke()
-  }
-  // sheen gradient
-  const g=c.createLinearGradient(0,0,w,h)
-  g.addColorStop(0,'rgba(255,255,255,.12)'); g.addColorStop(.5,'rgba(255,255,255,0)'); g.addColorStop(1,'rgba(0,0,0,.08)')
-  c.fillStyle=g; c.fillRect(0,0,w,h)
+  _applyVignette(c,w,h,.3)
 }
 function _matBokeh(c,w,h,p){
   const bg=p.color||'#050510'; c.fillStyle=bg; c.fillRect(0,0,w,h)
   const {r,g:gv,b}=hex2rgb(p.tint||'#6366f1')
-  for(let i=0;i<120;i++){
-    const bx=rand(0,w), by=rand(0,h), br=rand(20,90), ba=rand(.03,.18)
+  for(let i=0;i<140;i++){
+    const bx=rand(0,w), by=rand(0,h), br=rand(15,100), ba=rand(.025,.16)
     const gr=c.createRadialGradient(bx,by,0,bx,by,br)
     gr.addColorStop(0,`rgba(${r},${gv},${b},${ba})`)
+    gr.addColorStop(.6,`rgba(${r},${gv},${b},${(ba*.3).toFixed(3)})`)
     gr.addColorStop(1,`rgba(${r},${gv},${b},0)`)
     c.fillStyle=gr; c.fillRect(bx-br,by-br,br*2,br*2)
   }
-  _applyGrain(c,w,h,.04)
-  _applyVignette(c,w,h,.5)
+  _applyGrain(c,w,h,.035)
+  _applyVignette(c,w,h,.55)
 }
 function _matLinen(c,w,h,p){
   c.fillStyle=p.color||'#f5f0e8'; c.fillRect(0,0,w,h)
-  // warp threads
-  c.globalAlpha=.18
-  for(let x=0;x<w;x+=2){c.strokeStyle=(x%4===0)?'#c8b89a':'#d4c4aa';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke()}
-  // weft threads
-  for(let y=0;y<h;y+=2){c.strokeStyle=(y%4===0)?'#c8b89a':'#d4c4aa';c.lineWidth=1;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
-  c.globalAlpha=1; _applyGrain(c,w,h,.04)
+  c.save(); c.globalAlpha=.15
+  for(let x=0;x<w;x+=2){c.strokeStyle=(x%4===0)?'#b8a880':'#cbb896';c.lineWidth=1;c.beginPath();c.moveTo(x,0);c.lineTo(x,h);c.stroke()}
+  c.globalAlpha=.12
+  for(let y=0;y<h;y+=2){c.strokeStyle=(y%4===0)?'#b8a880':'#cbb896';c.lineWidth=1;c.beginPath();c.moveTo(0,y);c.lineTo(w,y);c.stroke()}
+  c.restore(); _applyGrain(c,w,h,.04)
 }
 function _matLeather(c,w,h,p){
   const base=p.color||'#4a3728'
-  genNoise(c,w,h,{type:'turbulence',scale:5,octaves:4,turbulence:.6,colorA:base,colorB:'#2a1f16',colorC:'#6b4c38',opacity:1,seed:42})
+  genNoise(c,w,h,{type:'turbulence',scale:5,octaves:5,turbulence:.7,colorA:base,colorB:'#2a1f16',colorC:'#6b4c38',opacity:1,seed:42,warp:.8,contrast:1.1,direction:0})
   const g=c.createLinearGradient(0,0,w,h)
-  g.addColorStop(0,'rgba(255,255,255,.05)'); g.addColorStop(1,'rgba(0,0,0,.2)')
+  g.addColorStop(0,'rgba(255,255,255,.06)'); g.addColorStop(1,'rgba(0,0,0,.22)')
   c.fillStyle=g; c.fillRect(0,0,w,h); _applyGrain(c,w,h,.05)
 }
 function _matMetalMesh(c,w,h,p){
   const s=p.blur||16
   c.fillStyle='#1a1a1a'; c.fillRect(0,0,w,h)
-  c.strokeStyle='rgba(180,180,180,.4)'; c.lineWidth=.8
-  // diagonal warp
+  c.strokeStyle='rgba(200,200,200,.35)'; c.lineWidth=.8
   for(let x=-h;x<w+h;x+=s){c.beginPath();c.moveTo(x,0);c.lineTo(x+h,h);c.stroke()}
-  // diagonal weft
   for(let x=-h;x<w+h;x+=s){c.beginPath();c.moveTo(x,0);c.lineTo(x-h,h);c.stroke()}
-  // sheen
   const g=c.createLinearGradient(0,0,w,h)
-  g.addColorStop(0,'rgba(255,255,255,.08)'); g.addColorStop(1,'rgba(0,0,0,.1)')
+  g.addColorStop(0,'rgba(255,255,255,.10)'); g.addColorStop(1,'rgba(0,0,0,.12)')
   c.fillStyle=g; c.fillRect(0,0,w,h)
+  _applyVignette(c,w,h,.3)
 }
 
 // ─── SHARED EFFECTS ─────────────────────────────────────────
@@ -945,55 +1136,97 @@ function genNeural(c, w, h, p) {
 
 // ─── AURORA GENERATOR ───────────────────────────────────────
 function genAuroraBg(c, w, h, p) {
-  const {colorA, colorB, colorC, bg, intensity, waveAmp, bands, opacity, seed} = p
+  const {colorA, colorB, colorC, colorD, bg, intensity, waveAmp, bands, opacity, seed, style, blobSize} = p
   c.clearRect(0,0,w,h)
   c.fillStyle = bg; c.fillRect(0,0,w,h)
   const sx = getSimplex()
-  const nb = Math.max(2, Math.round(bands))
-  const bandColors = [colorA, colorB, colorC]
+  const st = style || 'ios'
+  const blobColors = [colorA, colorB, colorC, colorD||colorA]
 
-  c.save(); c.globalCompositeOperation = 'screen'
-  for(let bi = 0; bi < nb; bi++) {
-    const col = hex2rgb(bandColors[bi % bandColors.length])
-    const baseY = 0.28 + (bi / nb) * 0.44
-    const bandH = 0.22 + _seededRand(seed*100 + bi*17) * 0.16
-    const wSeed = seed * 0.5 + bi * 2.3
-    const SLICES = Math.ceil(w / 3)
-
-    c.beginPath()
-    // top wave
-    for(let si = 0; si <= SLICES; si++) {
-      const t = si / SLICES
-      const wave = sx ? sx.noise2D(t*4 + wSeed, bi*1.7 + seed) * waveAmp : Math.sin(t*Math.PI*4 + seed)*waveAmp
-      const ty = h * (baseY - bandH/2 + wave)
-      si === 0 ? c.moveTo(0, ty) : c.lineTo(si*(w/SLICES), ty)
+  if (st === 'ios' || st === 'material' || st === 'bloom') {
+    // iOS/Material/Bloom: large overlapping radial blobs
+    const nb = Math.max(3, Math.round(bands))
+    const bsz = blobSize || 0.7
+    c.save(); c.globalCompositeOperation = 'screen'
+    for(let bi = 0; bi < nb; bi++) {
+      const col = hex2rgb(blobColors[bi % blobColors.length])
+      const bx = _seededRand(seed*500 + bi*13.7) * w
+      const by = _seededRand(seed*500 + bi*13.7 + 200) * h
+      const br = (bsz * 0.5 + _seededRand(seed*500 + bi*13.7 + 400) * bsz * 0.5) * Math.sqrt(w*w+h*h)
+      const al = intensity * (st === 'bloom' && bi===0 ? 0.7 : 0.45 + _seededRand(seed*500+bi*13.7+600)*0.2)
+      const grd = c.createRadialGradient(bx,by,0, bx,by,br)
+      grd.addColorStop(0,   `rgba(${col.r},${col.g},${col.b},${(al).toFixed(2)})`)
+      grd.addColorStop(0.3, `rgba(${col.r},${col.g},${col.b},${(al*0.5).toFixed(2)})`)
+      grd.addColorStop(0.7, `rgba(${col.r},${col.g},${col.b},${(al*0.15).toFixed(2)})`)
+      grd.addColorStop(1,   `rgba(${col.r},${col.g},${col.b},0)`)
+      c.fillStyle = grd; c.fillRect(0,0,w,h)
     }
-    // bottom wave (reverse)
-    for(let si = SLICES; si >= 0; si--) {
-      const t = si / SLICES
-      const wave = sx ? sx.noise2D(t*4 + wSeed, bi*1.7 + seed + 10) * waveAmp : Math.sin(t*Math.PI*4 + seed+2)*waveAmp
-      c.lineTo(si*(w/SLICES), h*(baseY + bandH/2 + wave))
-    }
-    c.closePath()
+    c.restore()
 
-    const grad = c.createLinearGradient(0, h*(baseY - bandH), 0, h*(baseY + bandH))
-    grad.addColorStop(0,   `rgba(${col.r},${col.g},${col.b},0)`)
-    grad.addColorStop(0.4, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.5})`)
-    grad.addColorStop(0.5, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.75})`)
-    grad.addColorStop(0.6, `rgba(${col.r},${col.g},${col.b},${intensity*opacity*0.5})`)
-    grad.addColorStop(1,   `rgba(${col.r},${col.g},${col.b},0)`)
-    c.fillStyle = grad; c.fill()
+  } else if (st === 'northern') {
+    // Northern lights: wavy horizontal bands
+    const nb = Math.max(2, Math.round(bands))
+    c.save(); c.globalCompositeOperation = 'screen'
+    for(let bi = 0; bi < nb; bi++) {
+      const col = hex2rgb(blobColors[bi % blobColors.length])
+      const baseY = 0.25 + (bi / nb) * 0.5
+      const bandH = 0.18 + _seededRand(seed*100 + bi*17) * 0.15
+      const wSeed = seed * 0.5 + bi * 2.3
+      const SLICES = Math.ceil(w / 2)
+      c.beginPath()
+      for(let si = 0; si <= SLICES; si++) {
+        const t = si / SLICES
+        const wave = sx ? sx.noise2D(t*4+wSeed, bi*1.7+seed) * waveAmp : Math.sin(t*Math.PI*4+seed)*waveAmp
+        const ty = h * (baseY - bandH/2 + wave)
+        si===0 ? c.moveTo(0,ty) : c.lineTo(si*(w/SLICES),ty)
+      }
+      for(let si = SLICES; si >= 0; si--) {
+        const t = si / SLICES
+        const wave = sx ? sx.noise2D(t*4+wSeed, bi*1.7+seed+10) * waveAmp : Math.sin(t*Math.PI*4+seed+2)*waveAmp
+        c.lineTo(si*(w/SLICES), h*(baseY + bandH/2 + wave))
+      }
+      c.closePath()
+      const grad = c.createLinearGradient(0, h*(baseY-bandH), 0, h*(baseY+bandH))
+      grad.addColorStop(0,   `rgba(${col.r},${col.g},${col.b},0)`)
+      grad.addColorStop(0.45,`rgba(${col.r},${col.g},${col.b},${(intensity*opacity*0.65).toFixed(2)})`)
+      grad.addColorStop(0.55,`rgba(${col.r},${col.g},${col.b},${(intensity*opacity*0.65).toFixed(2)})`)
+      grad.addColorStop(1,   `rgba(${col.r},${col.g},${col.b},0)`)
+      c.fillStyle = grad; c.fill()
+      // Shimmer top edge
+      c.save(); c.globalAlpha = intensity * 0.3
+      c.strokeStyle = `rgba(${col.r},${col.g},${col.b},0.8)`; c.lineWidth = 0.8
+      c.beginPath()
+      for(let si=0;si<=SLICES;si++){
+        const t=si/SLICES
+        const wave=sx?sx.noise2D(t*4+wSeed,bi*1.7+seed)*waveAmp:0
+        const ty=h*(baseY-bandH/2+wave)
+        si===0?c.moveTo(0,ty):c.lineTo(si*(w/SLICES),ty)
+      }
+      c.stroke(); c.restore()
+    }
+    c.restore()
+
+  } else if (st === 'sonoma') {
+    // macOS Sonoma: sky-to-earth radial glow
+    const sky = hex2rgb(colorA), earth = hex2rgb(colorB)
+    const topGrd = c.createRadialGradient(w*.5, h*.1, 0, w*.5, h*.1, Math.sqrt(w*w+h*h)*.8)
+    topGrd.addColorStop(0, `rgba(${sky.r},${sky.g},${sky.b},${intensity*0.7})`)
+    topGrd.addColorStop(1, `rgba(${sky.r},${sky.g},${sky.b},0)`)
+    c.save(); c.globalCompositeOperation='screen'; c.fillStyle=topGrd; c.fillRect(0,0,w,h); c.restore()
+    const botGrd = c.createRadialGradient(w*.5, h*.9, 0, w*.5, h*.9, Math.sqrt(w*w+h*h)*.6)
+    botGrd.addColorStop(0, `rgba(${earth.r},${earth.g},${earth.b},${intensity*0.5})`)
+    botGrd.addColorStop(1, `rgba(${earth.r},${earth.g},${earth.b},0)`)
+    c.save(); c.globalCompositeOperation='screen'; c.fillStyle=botGrd; c.fillRect(0,0,w,h); c.restore()
   }
-  c.restore()
 
-  // Ambient base glow
+  // Ambient base glow always
   const gc = hex2rgb(colorA)
-  const grd = c.createRadialGradient(w*.5, h*.65, 0, w*.5, h*.65, w*.55)
-  grd.addColorStop(0, `rgba(${gc.r},${gc.g},${gc.b},${intensity*.12})`)
-  grd.addColorStop(1, 'rgba(0,0,0,0)')
-  c.save(); c.globalCompositeOperation = 'screen'; c.fillStyle = grd; c.fillRect(0,0,w,h); c.restore()
-  _applyGrain(c, w, h, 0.035)
-  _applyVignette(c, w, h, 0.6)
+  const ambGrd = c.createRadialGradient(w*.5, h*.6, 0, w*.5, h*.6, w*.6)
+  ambGrd.addColorStop(0, `rgba(${gc.r},${gc.g},${gc.b},${intensity*.1})`)
+  ambGrd.addColorStop(1, 'rgba(0,0,0,0)')
+  c.save(); c.globalCompositeOperation='screen'; c.fillStyle=ambGrd; c.fillRect(0,0,w,h); c.restore()
+  _applyGrain(c, w, h, 0.032)
+  _applyVignette(c, w, h, 0.55)
 }
 
 // ─── PARTICLE FIELD ─────────────────────────────────────────
@@ -1031,64 +1264,254 @@ function genParticles(c, w, h, p) {
 
 // ─── ISOMETRIC GRID ─────────────────────────────────────────
 function genIsometric(c, w, h, p) {
-  const {size, colorTop, colorLeft, colorRight, bg, depth, opacity, filled} = p
-  c.clearRect(0,0,w,h)
-  c.fillStyle = bg; c.fillRect(0,0,w,h)
-  const ct = hex2rgb(colorTop), cl = hex2rgb(colorLeft), cr2 = hex2rgb(colorRight)
-  const TW = size, TH = size * 0.5, cubeH = depth * TH
-  const cols = Math.ceil(w / TW) + 6, rows = Math.ceil(h / TH) + 6
+  const type         = p.type         || 'cubes'
+  const size         = p.size         || 48
+  const gap          = p.gap          ?? 1
+  const lineW        = p.lineW        ?? 0.8
+  const rotation     = p.rotation     || 0
+  const colorTop     = p.colorTop     || '#6366f1'
+  const colorLeft    = p.colorLeft    || '#1e1b4b'
+  const colorRight   = p.colorRight   || '#312e81'
+  const bg           = p.bg           || '#0b0b10'
+  const depth        = p.depth        ?? 0.7
+  const lightAngle   = p.lightAngle   ?? 135
+  const shadowInt    = p.shadowInt    ?? 0.45
+  const jitter       = p.jitter       || 0
+  const gradOverlay  = p.gradOverlay  ?? 0.3
+  const noiseDistort = p.noiseDistort || 0
+  const opacity      = p.opacity      ?? 1
+  const seed         = p.seed         || 0
+  const heightVar    = p.heightVariance ?? 0.5
 
-  c.save(); c.globalAlpha = opacity
+  // --- Background ---
+  c.save()
+  c.fillStyle = bg
+  c.fillRect(0, 0, w, h)
 
-  // Painter's order: iterate by depth (col+row) from back to front
-  const maxD = cols + rows
-  for(let d = 0; d <= maxD; d++) {
-    for(let col = 0; col < cols; col++) {
-      const row = d - col
-      if(row < 0 || row >= rows) continue
-      const cx = (col - row) * TW/2 + w/2
-      const cy = (col + row) * TH/2 - (rows * TH/4)
-      if(cx+TW < 0 || cx-TW > w || cy+TH+cubeH < 0 || cy-cubeH > h) continue
+  // --- Tile dimensions ---
+  // TW = full tile width, TH = full tile height (TW/2 = standard iso ratio)
+  const TW = size * 2
+  const TH = size
+  const maxCubeH = size * depth
 
-      // Vertices
-      const tTop    = {x:cx,        y:cy - cubeH}
-      const tRight  = {x:cx+TW/2,   y:cy+TH/2 - cubeH}
-      const tBottom = {x:cx,        y:cy+TH - cubeH}
-      const tLeft   = {x:cx-TW/2,   y:cy+TH/2 - cubeH}
-      const gBottom = {x:cx,        y:cy+TH}
-      const gLeft   = {x:cx-TW/2,   y:cy+TH/2}
-      const gRight  = {x:cx+TW/2,   y:cy+TH/2}
+  // --- Colors ---
+  const ctRgb = hex2rgb(colorTop)
+  const clRgb = hex2rgb(colorLeft)
+  const crRgb = hex2rgb(colorRight)
 
-      if(filled) {
-        // Top face
-        c.fillStyle = `rgb(${ct.r},${ct.g},${ct.b})`
-        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
-        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.fill()
-        // Left face
-        c.fillStyle = `rgb(${cl.r},${cl.g},${cl.b})`
-        c.beginPath(); c.moveTo(tLeft.x,tLeft.y); c.lineTo(tBottom.x,tBottom.y)
-        c.lineTo(gBottom.x,gBottom.y); c.lineTo(gLeft.x,gLeft.y); c.closePath(); c.fill()
-        // Right face
-        c.fillStyle = `rgb(${cr2.r},${cr2.g},${cr2.b})`
-        c.beginPath(); c.moveTo(tBottom.x,tBottom.y); c.lineTo(tRight.x,tRight.y)
-        c.lineTo(gRight.x,gRight.y); c.lineTo(gBottom.x,gBottom.y); c.closePath(); c.fill()
-        // Edge highlights
-        c.strokeStyle = `rgba(255,255,255,0.06)`; c.lineWidth = 0.5
-        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
-        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.stroke()
-      } else {
-        c.strokeStyle = `rgba(${ct.r},${ct.g},${ct.b},0.5)`; c.lineWidth = 0.7
-        c.beginPath(); c.moveTo(tTop.x,tTop.y); c.lineTo(tRight.x,tRight.y)
-        c.lineTo(tBottom.x,tBottom.y); c.lineTo(tLeft.x,tLeft.y); c.closePath(); c.stroke()
+  // --- Lighting: Lambert diffuse on each face ---
+  // Light direction in the isometric world (xz plane, y = vertical)
+  const lRad   = lightAngle * Math.PI / 180
+  const lx     = Math.cos(lRad)
+  const lz     = Math.sin(lRad)
+  const ambient = 1 - shadowInt
+  // Face normals (approximate isometric projections):
+  //   Top   ≈ (0, 1, 0)       always faces up
+  //   Left  ≈ (-0.707, 0, 0.5) roughly left-back face
+  //   Right ≈ ( 0.707, 0, 0.5) roughly right-back face
+  const dotLeft  = Math.max(0, -lx * 0.707 + lz * 0.5)
+  const dotRight = Math.max(0,  lx * 0.707 + lz * 0.5)
+  function lit(rgb, dot) {
+    const s = ambient + (1 - ambient) * dot
+    return { r: Math.min(255, rgb.r * s | 0), g: Math.min(255, rgb.g * s | 0), b: Math.min(255, rgb.b * s | 0) }
+  }
+  const ctLit = lit(ctRgb, 1.0)
+  const clLit = lit(clRgb, dotLeft)
+  const crLit = lit(crRgb, dotRight)
+
+  // --- Seeded RNG (fast, deterministic) ---
+  function srand(n) {
+    let h = Math.imul(n ^ (n >>> 16), 0x45d9f3b) ^ Math.imul((seed * 2654435761) | 0, 0x1b873593)
+    h = Math.imul(h ^ (h >>> 13), 0xc2b2ae35)
+    return (h >>> 0) / 0xFFFFFFFF
+  }
+
+  // --- Simplex noise (for distortion) ---
+  const sn = (noiseDistort > 0 || jitter > 0) ? getSimplex() : null
+
+  // --- Grid overscan via U/V coordinates ---
+  // U = col - row  (→ screen x)
+  // V = col + row  (→ screen depth / y)
+  // screenX = cx0 + U * TW/2
+  // screenY = cy0 + V * TH/2
+  // Only valid when (U+V) is even (ensures integer col, row)
+  const MARGIN  = 6 + (rotation !== 0 ? 4 : 0)
+  const cubeTop = Math.ceil(maxCubeH / (TH / 2)) + 2
+  const Umax    = Math.ceil(w / TW) + MARGIN
+  const Vmax    = Math.ceil(h / TH) + MARGIN + cubeTop
+  const cx0 = w / 2, cy0 = h / 2
+
+  const tiles = []
+  for(let U = -Umax; U <= Umax; U++) {
+    for(let V = -Vmax; V <= Vmax; V++) {
+      if(((U + V) & 1) !== 0) continue  // skip non-integer grid positions
+      const col = (U + V) >> 1
+      const row = (V - U) >> 1
+
+      // --- Per-tile height ---
+      let tileH = maxCubeH
+      if(type === 'diamond') {
+        tileH = 0
+      } else if(type === 'wireframe') {
+        tileH = maxCubeH * 0.4
+      } else if(type === 'blocks') {
+        const hr = srand(col * 7919 + row * 4937)
+        tileH = maxCubeH * Math.max(0.06, hr * heightVar * 1.4)
+      } else if(type === 'podium') {
+        const dist = Math.sqrt(col * col + row * row)
+        const podR = 2.5
+        if(dist <= podR) {
+          tileH = maxCubeH * (1 + heightVar * 0.6)
+        } else {
+          const fall = Math.max(0, 1 - (dist - podR) / (podR * 2.8))
+          tileH = maxCubeH * (fall * 0.85 + 0.04)
+        }
+      } else if(type === 'random') {
+        const hr = srand(col * 7919 + row * 4937)
+        tileH = hr < 0.14 ? 0 : maxCubeH * (0.06 + hr * heightVar * 1.2)
+      }
+      // type === 'cubes': tileH stays maxCubeH
+
+      // --- Jitter & noise distortion ---
+      let jX = 0, jY = 0
+      if(jitter > 0) {
+        jX = (srand(col * 3001 + row * 1999)       - 0.5) * jitter * TW * 0.28
+        jY = (srand(col * 1999 + row * 3001 + 500) - 0.5) * jitter * TH * 0.28
+      }
+      if(noiseDistort > 0 && sn) {
+        jX += sn.noise2D(col * 0.07,      row * 0.07)      * noiseDistort * TW * 0.35
+        jY += sn.noise2D(col * 0.07 + 80, row * 0.07 + 80) * noiseDistort * TH * 0.35
+      }
+
+      tiles.push({ V, col, row,
+        sx: cx0 + U * (TW / 2) + jX,
+        sy: cy0 + V * (TH / 2) + jY,
+        tileH })
+    }
+  }
+
+  // Painter's sort — lower V = farther from viewer (draw first)
+  tiles.sort((a, b) => a.V - b.V)
+
+  // --- Draw ---
+  c.save()
+  if(rotation !== 0) {
+    c.translate(w / 2, h / 2)
+    c.rotate(rotation * Math.PI / 180)
+    c.translate(-w / 2, -h / 2)
+  }
+  c.beginPath(); c.rect(0, 0, w, h); c.clip()
+  c.globalAlpha = opacity
+
+  for(const tile of tiles) {
+    const { sx, sy, tileH } = tile
+    // Half-extents (shrunk by gap)
+    const hw = TW / 2 - gap
+    const hh = TH / 2 - gap * 0.5
+
+    // Top-face diamond vertices (shifted up by tileH)
+    const tTop    = { x: sx,      y: sy - hh - tileH }
+    const tRight  = { x: sx + hw, y: sy      - tileH }
+    const tBottom = { x: sx,      y: sy + hh - tileH }
+    const tLeft   = { x: sx - hw, y: sy      - tileH }
+    // Ground-plane side vertices
+    const gRight  = { x: sx + hw, y: sy }
+    const gBottom = { x: sx,      y: sy + hh }
+    const gLeft   = { x: sx - hw, y: sy }
+
+    if(type === 'wireframe') {
+      // Top diamond outline
+      c.strokeStyle = `rgba(${ctRgb.r},${ctRgb.g},${ctRgb.b},0.55)`
+      c.lineWidth = lineW
+      c.beginPath()
+      c.moveTo(tTop.x, tTop.y); c.lineTo(tRight.x, tRight.y)
+      c.lineTo(tBottom.x, tBottom.y); c.lineTo(tLeft.x, tLeft.y); c.closePath()
+      c.stroke()
+      // Vertical edges
+      c.strokeStyle = `rgba(${ctRgb.r},${ctRgb.g},${ctRgb.b},0.22)`
+      c.beginPath()
+      c.moveTo(tLeft.x, tLeft.y);    c.lineTo(gLeft.x, gLeft.y)
+      c.moveTo(tBottom.x, tBottom.y); c.lineTo(gBottom.x, gBottom.y)
+      c.moveTo(tRight.x, tRight.y);  c.lineTo(gRight.x, gRight.y)
+      c.stroke()
+      // Bottom visible edges
+      c.strokeStyle = `rgba(${ctRgb.r},${ctRgb.g},${ctRgb.b},0.12)`
+      c.beginPath()
+      c.moveTo(gLeft.x, gLeft.y);   c.lineTo(gBottom.x, gBottom.y)
+      c.moveTo(gBottom.x, gBottom.y); c.lineTo(gRight.x, gRight.y)
+      c.stroke()
+    } else {
+      // Height-based brightness boost for variable-height types
+      let topBoost = 1
+      if(maxCubeH > 0 && (type === 'blocks' || type === 'podium' || type === 'random')) {
+        topBoost = 0.75 + (tileH / maxCubeH) * 0.5
+      }
+      const tr = Math.min(255, ctLit.r * topBoost | 0)
+      const tg = Math.min(255, ctLit.g * topBoost | 0)
+      const tb2 = Math.min(255, ctLit.b * topBoost | 0)
+
+      // Top face
+      c.fillStyle = `rgb(${tr},${tg},${tb2})`
+      c.beginPath()
+      c.moveTo(tTop.x, tTop.y); c.lineTo(tRight.x, tRight.y)
+      c.lineTo(tBottom.x, tBottom.y); c.lineTo(tLeft.x, tLeft.y)
+      c.closePath(); c.fill()
+
+      if(tileH > 0.5) {
+        // Left face (shadow side)
+        c.fillStyle = `rgb(${clLit.r},${clLit.g},${clLit.b})`
         c.beginPath()
-        c.moveTo(tLeft.x,tLeft.y);   c.lineTo(gLeft.x,gLeft.y)
-        c.moveTo(tBottom.x,tBottom.y); c.lineTo(gBottom.x,gBottom.y)
-        c.moveTo(tRight.x,tRight.y); c.lineTo(gRight.x,gRight.y)
-        c.stroke()
+        c.moveTo(tLeft.x, tLeft.y); c.lineTo(tBottom.x, tBottom.y)
+        c.lineTo(gBottom.x, gBottom.y); c.lineTo(gLeft.x, gLeft.y)
+        c.closePath(); c.fill()
+
+        // Right face (light side)
+        c.fillStyle = `rgb(${crLit.r},${crLit.g},${crLit.b})`
+        c.beginPath()
+        c.moveTo(tBottom.x, tBottom.y); c.lineTo(tRight.x, tRight.y)
+        c.lineTo(gRight.x, gRight.y); c.lineTo(gBottom.x, gBottom.y)
+        c.closePath(); c.fill()
+
+        // Subtle top-edge highlight (catches direct light)
+        if(lineW > 0) {
+          c.strokeStyle = `rgba(255,255,255,0.10)`
+          c.lineWidth = lineW * 0.7
+          c.beginPath()
+          c.moveTo(tTop.x, tTop.y); c.lineTo(tLeft.x, tLeft.y)
+          c.moveTo(tTop.x, tTop.y); c.lineTo(tRight.x, tRight.y)
+          c.stroke()
+          // Dark base crease
+          c.strokeStyle = `rgba(0,0,0,0.25)`
+          c.beginPath()
+          c.moveTo(gLeft.x, gLeft.y); c.lineTo(gBottom.x, gBottom.y)
+          c.lineTo(gRight.x, gRight.y)
+          c.stroke()
+        }
+      } else if(gap < 1) {
+        // Flat tile — thin separator line
+        c.strokeStyle = `rgba(0,0,0,0.18)`
+        c.lineWidth = 0.5
+        c.beginPath()
+        c.moveTo(tTop.x, tTop.y); c.lineTo(tRight.x, tRight.y)
+        c.lineTo(tBottom.x, tBottom.y); c.lineTo(tLeft.x, tLeft.y)
+        c.closePath(); c.stroke()
       }
     }
   }
-  c.restore()
+  c.restore() // end rotation / clip
+
+  // --- Radial vignette overlay ---
+  if(gradOverlay > 0.01) {
+    c.save()
+    const grd = c.createRadialGradient(w/2, h/2, 0, w/2, h/2, Math.sqrt(w*w + h*h) * 0.55)
+    grd.addColorStop(0, 'rgba(0,0,0,0)')
+    grd.addColorStop(1, `rgba(0,0,0,${gradOverlay})`)
+    c.fillStyle = grd
+    c.fillRect(0, 0, w, h)
+    c.restore()
+  }
+
+  c.restore() // restore initial save
 }
 
 // ─── HOLOGRAPHIC / METALLIC ─────────────────────────────────
@@ -1904,44 +2327,142 @@ function _ctrl(id,label,val,min,max,step=1){
   return `<div class="ctrl"><label>${label}<span id="v_${id}">${typeof val==='number'?Math.round(val*100)/100:val}</span></label><input type="range" id="c_${id}" min="${min}" max="${max}" step="${step}" value="${val}"/></div>`
 }
 function _ctrlColor(id,label,val){
-  return `<div class="ctrl"><label>${label}</label><div style="display:flex;gap:6px;align-items:center"><input type="color" id="c_${id}" value="${val}" style="width:36px;height:28px;border:none;background:none;cursor:pointer;border-radius:4px;padding:0"/><input type="text" id="ct_${id}" value="${val}" style="flex:1;font-family:monospace;font-size:12px"/></div></div>`
+  return `<div class="ctrl"><label>${label}</label><div style="display:flex;gap:6px;align-items:center"><input type="color" id="c_${id}" value="${val||'#000000'}" style="width:36px;height:28px;border:none;background:none;cursor:pointer;border-radius:4px;padding:0"/><input type="text" id="ct_${id}" value="${val||'#000000'}" style="flex:1;font-family:monospace;font-size:12px"/></div></div>`
 }
 function _ctrlSelect(id,label,val,opts){
   return `<div class="ctrl"><label>${label}</label><select id="c_${id}">${opts.map(([v,l])=>`<option value="${v}"${v===val?' selected':''}>${l}</option>`).join('')}</select></div>`
 }
 
+function _moodRow(gen){
+  return `<div style="margin-bottom:10px">
+    <div class="rp-title" style="margin-bottom:5px">Mood Presets</div>
+    <div style="display:flex;gap:4px;flex-wrap:wrap">
+      <button class="btn sm mood-btn" data-gen="${gen}" data-mood="dark">🌑 Dark</button>
+      <button class="btn sm mood-btn" data-gen="${gen}" data-mood="light">☀ Light</button>
+      <button class="btn sm mood-btn" data-gen="${gen}" data-mood="vibrant">⚡ Vibrant</button>
+      <button class="btn sm mood-btn" data-gen="${gen}" data-mood="pastel">🌸 Pastel</button>
+      <button class="btn sm mood-btn" data-gen="${gen}" data-mood="neutral">⬜ Neutral</button>
+    </div>
+  </div>`
+}
+
+function _applyMood(gen, mood){
+  const p = S.params[gen]
+  const moods = {
+    dark:{
+      gradient:   {stops:['#0b0b14','#1a1a3e','#050510'], type:'radial'},
+      geometric:  {colorA:'#4a4a8a',colorB:'#06060e',opacity:.15},
+      noise:      {colorA:'#0d0d1a',colorB:'#1a1a3a',colorC:'#2d2d5e',contrast:1.2},
+      flowfield:  {colorA:'#4040a0',colorB:'#0088cc',bg:'#030308'},
+      material:   {bg:'#1a1a2e',bgB:'#0d0d1a',tint:'#4040a0'},
+      auroragen:  {bg:'#020510',colorA:'#0066aa',colorB:'#330066',intensity:.9},
+      topographic:{colorBg:'#060810',colorA:'#0a1628',colorB:'#1e3a5f'},
+      neural:     {bg:'#030308',nodeColor:'#4444cc',edgeColor:'#224488'},
+      particles:  {bg:'#030308',colorA:'#3333bb',colorB:'#0088aa'},
+      isometric:  {bg:'#06060e',colorTop:'#1a1a4e',colorLeft:'#0d0d2a',colorRight:'#111138'},
+      holographic:{intensity:.7,grain:.05},
+      circuit:    {bg:'#020508',traceColor:'#1a4466',glowColor:'#004488'},
+      fluid:      {bg:'#030308',colorA:'#1a1a6e',colorB:'#0d0d3a',colorC:'#2d2d8e'},
+    },
+    light:{
+      gradient:   {stops:['#e8f4fd','#ddd6fe','#fce7f3'], type:'radial'},
+      geometric:  {colorA:'#8888cc',colorB:'#f0f4ff',opacity:.12},
+      noise:      {colorA:'#f5f0eb',colorB:'#d4c4aa',colorC:'#b8a880',contrast:.9},
+      flowfield:  {colorA:'#9999dd',colorB:'#66aacc',bg:'#f0f4ff'},
+      material:   {bg:'#8888cc',bgB:'#cc88aa',tint:'#ffffff',opacity:.25},
+      auroragen:  {bg:'#e8f0ff',colorA:'#88aaff',colorB:'#cc88ee',intensity:.5},
+      topographic:{colorBg:'#f0f4ff',colorA:'#9999cc',colorB:'#6677aa'},
+      neural:     {bg:'#f0f4ff',nodeColor:'#7777cc',edgeColor:'#aaaadd'},
+      particles:  {bg:'#f0f4ff',colorA:'#8888cc',colorB:'#cc88aa'},
+      isometric:  {bg:'#f0f4ff',colorTop:'#ccccee',colorLeft:'#aaaacc',colorRight:'#bbbbdd'},
+      holographic:{intensity:.6,grain:.02},
+      circuit:    {bg:'#f0f8ff',traceColor:'#8899cc',glowColor:'#aabbdd'},
+      fluid:      {bg:'#f0f4ff',colorA:'#9999dd',colorB:'#ccaadd',colorC:'#aaccee'},
+    },
+    vibrant:{
+      gradient:   {stops:['#7c3aed','#ec4899','#06b6d4'], type:'mesh'},
+      geometric:  {colorA:'#ff0080',colorB:'#050510',opacity:.3},
+      noise:      {colorA:'#ff0066',colorB:'#6600ff',colorC:'#00ccff',contrast:1.3},
+      flowfield:  {colorA:'#ff0080',colorB:'#00ffcc',bg:'#050510'},
+      material:   {bg:'#ff0080',bgB:'#6600ff',tint:'#ffffff',opacity:.22},
+      auroragen:  {bg:'#050510',colorA:'#00ffcc',colorB:'#ff0080',colorC:'#ffcc00',intensity:1},
+      topographic:{colorBg:'#050510',colorA:'#ff0080',colorB:'#00ffcc'},
+      neural:     {bg:'#050510',nodeColor:'#ff0080',edgeColor:'#00ffcc'},
+      particles:  {bg:'#050510',colorA:'#ff0080',colorB:'#00ccff'},
+      isometric:  {bg:'#050510',colorTop:'#ff0080',colorLeft:'#660033',colorRight:'#990066'},
+      holographic:{intensity:1,grain:.02},
+      circuit:    {bg:'#050510',traceColor:'#00ffcc',glowColor:'#ff0080'},
+      fluid:      {bg:'#050510',colorA:'#ff0080',colorB:'#00ffcc',colorC:'#ffcc00'},
+    },
+    pastel:{
+      gradient:   {stops:['#c4b5fd','#fbcfe8','#a5f3fc'], type:'linear'},
+      geometric:  {colorA:'#c4b5fd',colorB:'#fdf4ff',opacity:.15},
+      noise:      {colorA:'#fce7f3',colorB:'#ddd6fe',colorC:'#bfdbfe',contrast:.85},
+      flowfield:  {colorA:'#c4b5fd',colorB:'#a5f3fc',bg:'#fdf4ff'},
+      material:   {bg:'#c4b5fd',bgB:'#fbcfe8',tint:'#ffffff',opacity:.2},
+      auroragen:  {bg:'#f0e8ff',colorA:'#c4b5fd',colorB:'#fbcfe8',colorC:'#bfdbfe',intensity:.55},
+      topographic:{colorBg:'#fdf4ff',colorA:'#c4b5fd',colorB:'#a5f3fc'},
+      neural:     {bg:'#fdf4ff',nodeColor:'#c4b5fd',edgeColor:'#a5f3fc'},
+      particles:  {bg:'#fdf4ff',colorA:'#c4b5fd',colorB:'#fbcfe8'},
+      isometric:  {bg:'#fdf4ff',colorTop:'#ddd6fe',colorLeft:'#c4b5fd',colorRight:'#e9d5ff'},
+      holographic:{intensity:.65,grain:.01},
+      circuit:    {bg:'#f8f0ff',traceColor:'#c4b5fd',glowColor:'#fbcfe8'},
+      fluid:      {bg:'#fdf4ff',colorA:'#c4b5fd',colorB:'#fbcfe8',colorC:'#bfdbfe'},
+    },
+    neutral:{
+      gradient:   {stops:['#1e2433','#2d3748','#4a5568'], type:'linear'},
+      geometric:  {colorA:'#667080',colorB:'#0f1218',opacity:.18},
+      noise:      {colorA:'#1a2030',colorB:'#2d3748',colorC:'#4a5568',contrast:1.0},
+      flowfield:  {colorA:'#4a5568',colorB:'#718096',bg:'#0f1218'},
+      material:   {bg:'#2d3748',bgB:'#1a2030',tint:'#718096',opacity:.2},
+      auroragen:  {bg:'#0f1218',colorA:'#2d3748',colorB:'#4a5568',colorC:'#718096',intensity:.65},
+      topographic:{colorBg:'#0f1218',colorA:'#2d3748',colorB:'#4a5568'},
+      neural:     {bg:'#0f1218',nodeColor:'#4a5568',edgeColor:'#2d3748'},
+      particles:  {bg:'#0f1218',colorA:'#4a5568',colorB:'#718096'},
+      isometric:  {bg:'#0f1218',colorTop:'#2d3748',colorLeft:'#1a2030',colorRight:'#252f3e'},
+      holographic:{intensity:.5,grain:.04},
+      circuit:    {bg:'#0a0e14',traceColor:'#2d3748',glowColor:'#4a5568'},
+      fluid:      {bg:'#0f1218',colorA:'#2d3748',colorB:'#4a5568',colorC:'#718096'},
+    }
+  }
+  const m = moods[mood]?.[gen]
+  if(!m) return
+  Object.assign(p, m)
+  buildControls()
+  render(true)
+}
+
 function _ctrlGradient(){
   const p=S.params.gradient
   return `<div class="rp-section">
-    ${_ctrlSelect('grad_type','Type',p.type,[['linear','Linear'],['radial','Radial'],['conic','Conic'],['mesh','Mesh'],['aurora','Aurora']])}
+    ${_moodRow('gradient')}
+    ${_ctrlSelect('grad_type','Type',p.type,[['linear','Linear'],['radial','Radial'],['conic','Conic'],['mesh','9-pt Mesh'],['aurora','Aurora Blobs']])}
     ${_ctrl('grad_angle','Angle',p.angle,0,360)}
     ${_ctrl('grad_cx','Center X',p.cx,0,1,.01)}
     ${_ctrl('grad_cy','Center Y',p.cy,0,1,.01)}
-    <div class="rp-title" style="margin-top:4px">Color Stops</div>
-    ${p.stops.map((s,i)=>_ctrlColor(`stop${i}`,'Stop '+(i+1),s)).join('')}
-    <div style="display:flex;gap:6px;margin-top:4px">
-      <button class="btn sm" id="addStop">+ Stop</button>
-      <button class="btn sm" id="remStop">- Stop</button>
-    </div>
+    ${_ctrl('grad_grain','Grain',p.grain||0,0,.2,.005)}
+    ${p.type==='mesh'?`<div class="rp-title" style="margin-top:4px">9-Point Mesh Colors</div>${(p.meshPts||[]).map((s,i)=>_ctrlColor(`meshpt${i}`,'Point '+(i+1),s)).join('')}`:`<div class="rp-title" style="margin-top:4px">Color Stops</div>${p.stops.map((s,i)=>_ctrlColor(`stop${i}`,'Stop '+(i+1),s)).join('')}<div style="display:flex;gap:6px;margin-top:4px"><button class="btn sm" id="addStop">+ Stop</button><button class="btn sm" id="remStop">- Stop</button></div>`}
   </div>`
 }
 
 function _ctrlGeometric(){
   const p=S.params.geometric
   return `<div class="rp-section">
+    ${_moodRow('geometric')}
     ${_ctrlSelect('geo_type','Pattern',p.type,[
-      ['hex','Hexagon'],['triangles','Triangles'],['dots','Polka Dots'],
-      ['stripes','Stripes'],['chevron','Chevron'],['houndstooth','Houndstooth'],
-      ['plaid','Plaid / Tartan'],['isogrid','Isometric Grid'],['dotgrid','Dot Grid'],
-      ['moroccan','Moroccan Star'],['islamic','Islamic 12-star'],['truchet','Truchet Tiles']
+      ['dotgrid','Dot Grid (Notion)'],['hex','Hexagon Mesh'],['triangles','Triangles'],
+      ['dots','Polka Dots'],['stripes','Stripes'],['chevron','Chevron'],
+      ['moroccan','Moroccan Star'],['islamic','Islamic 12-star'],['truchet','Truchet Tiles'],
+      ['houndstooth','Houndstooth'],['plaid','Plaid / Tartan'],['isogrid','Isometric Grid']
     ])}
-    ${_ctrl('geo_size','Tile Size',p.size,8,120,1)}
-    ${_ctrl('geo_gap','Gap',p.gap,0,20,.5)}
+    ${_ctrl('geo_size','Scale / Cell Size',p.size,8,120,1)}
+    ${_ctrl('geo_gap','Dot / Gap Size',p.gap,0,20,.5)}
     ${_ctrl('geo_rot','Rotation',p.rotation,0,180,1)}
-    ${_ctrl('geo_lw','Line Width',p.lineW,.5,8,.5)}
-    ${_ctrl('geo_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('geo_lw','Stroke Weight',p.lineW,.5,5,.5)}
+    ${_ctrl('geo_op','Opacity',p.opacity,0,.5,.005)}
+    ${_ctrl('geo_blur','Softness / Blur',p.blur||0,0,4,.5)}
     <div class="toggle-row"><span class="toggle-label">Filled shapes</span><div class="toggle${p.filled?' on':''}" id="toggle_filled"></div></div>
-    ${_ctrlColor('geo_ca','Foreground',p.colorA)}
+    ${_ctrlColor('geo_ca','Pattern Color',p.colorA)}
     ${_ctrlColor('geo_cb','Background',p.colorB)}
   </div>`
 }
@@ -1949,31 +2470,48 @@ function _ctrlGeometric(){
 function _ctrlNoise(){
   const p=S.params.noise
   return `<div class="rp-section">
-    ${_ctrlSelect('noise_type','Type',p.type,[
-      ['perlin','Perlin (Clouds)'],['fbm','fBm (Fractal)'],['turbulence','Turbulence'],
-      ['marble','Marble / Stone'],['wood','Wood Grain'],['fabric','Fabric Weave'],['paper','Paper Grain']
+    ${_moodRow('noise')}
+    ${_ctrlSelect('noise_type','Texture Type',p.type,[
+      ['marble','Marble (photorealistic)'],['brushed','Brushed Metal'],
+      ['clouds','Cloudy Sky'],['smoke','Smoke / Fog'],
+      ['watercolor','Watercolor Wash'],['linen','Linen Fabric'],
+      ['paper','Worn Paper'],['fbm','fBm Fractal'],
+      ['turbulence','Turbulence'],['wood','Wood Grain']
     ])}
     ${_ctrl('noise_scale','Scale',p.scale,.5,15,.5)}
     ${_ctrl('noise_oct','Octaves',p.octaves,1,8,1)}
-    ${_ctrl('noise_turb','Turbulence',p.turbulence,0,2,.05)}
+    ${_ctrl('noise_turb','Turbulence / Warp Intensity',p.turbulence,0,3,.05)}
+    ${_ctrl('noise_warp','Domain Warp',p.warp||0,0,3,.1)}
+    ${_ctrl('noise_contrast','Contrast',p.contrast||1,.3,2,.05)}
+    ${_ctrl('noise_dir','Grain Direction',p.direction||0,0,360,5)}
     ${_ctrl('noise_op','Opacity',p.opacity,0,1,.01)}
     ${_ctrl('noise_seed','Seed',p.seed,0,999,1)}
-    ${_ctrlColor('noise_ca','Color A',p.colorA)}
-    ${_ctrlColor('noise_cb','Color B',p.colorB)}
-    ${_ctrlColor('noise_cc','Color C',p.colorC)}
+    ${_ctrlColor('noise_ca','Color A (shadows)',p.colorA)}
+    ${_ctrlColor('noise_cb','Color B (midtones)',p.colorB)}
+    ${_ctrlColor('noise_cc','Color C (highlights)',p.colorC)}
   </div>`
 }
 
 function _ctrlFlowField(){
   const p=S.params.flowfield
   return `<div class="rp-section">
+    ${_moodRow('flowfield')}
     ${_ctrlSelect('ff_type','Field Type',p.type,[
-      ['curl','Curl Noise'],['perlin','Perlin Noise'],['sine','Sine Wave'],['radial','Radial']
+      ['magnetic','Magnetic Field Lines'],['vortex','Vortex / Spiral'],
+      ['waves','Wave Interference'],['wind','Atmospheric Wind'],
+      ['curl','Curl Noise'],['perlin','Perlin Noise'],
+      ['sine','Sine Wave'],['radial','Radial Burst']
     ])}
-    ${_ctrl('ff_count','Particle Count',p.count,100,6000,50)}
+    ${_ctrlSelect('ff_colorMode','Color Mode',p.colorMode||'gradient',[
+      ['gradient','Gradient A→B'],['huePos','Hue by Position'],
+      ['rainbow','Rainbow Trail'],['single','Single Color']
+    ])}
+    ${_ctrl('ff_count','Particle Count',p.count,100,5000,50)}
+    ${_ctrl('ff_trailLen','Trail Length',p.trailLen||20,5,80,1)}
     ${_ctrl('ff_step','Step Length',p.stepLen,1,8,.5)}
-    ${_ctrl('ff_lw','Line Width',p.lineW,.5,4,.5)}
+    ${_ctrl('ff_lw','Line Width',p.lineW,.5,4,.25)}
     ${_ctrl('ff_speed','Speed',p.speed,.1,3,.1)}
+    ${_ctrl('ff_poles','Poles / Attractors',p.poles||2,1,6,1)}
     ${_ctrl('ff_op','Opacity',p.opacity,0,1,.01)}
     ${_ctrl('ff_seed','Seed',p.seed,0,999,1)}
     ${_ctrlColor('ff_bg','Background',p.bg)}
@@ -1985,15 +2523,22 @@ function _ctrlFlowField(){
 function _ctrlMaterial(){
   const p=S.params.material
   return `<div class="rp-section">
+    ${_moodRow('material')}
     ${_ctrlSelect('mat_type','Material',p.type,[
-      ['glassmorphism','Glassmorphism'],['carbon','Carbon Fiber'],['brushed','Brushed Metal'],
-      ['bokeh','Bokeh / Lights'],['linen','Linen Fabric'],['leather','Leather'],['metal-mesh','Metal Mesh']
+      ['glassmorphism','Glassmorphism'],['neumorphism','Neumorphism'],
+      ['carbon','Carbon Fiber'],['velvet','Velvet'],
+      ['bokeh','Bokeh / Depth of Field'],['linen','Linen Fabric'],
+      ['leather','Leather'],['metal-mesh','Metal Mesh']
     ])}
-    ${_ctrl('mat_blur','Detail',p.blur,2,30,1)}
-    ${_ctrl('mat_op','Opacity',p.opacity,0,1,.01)}
-    ${_ctrl('mat_grain','Grain',p.grain,0,.5,.01)}
-    ${_ctrlColor('mat_col','Color',p.color)}
-    ${_ctrlColor('mat_tint','Tint',p.tint)}
+    ${_ctrl('mat_blur','Detail / Weave',p.blur||8,2,30,1)}
+    ${_ctrl('mat_op','Glass Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('mat_grain','Surface Grain',p.grain,0,.3,.005)}
+    ${_ctrl('mat_elev','Elevation / Depth',p.elevation||12,0,40,1)}
+    ${_ctrl('mat_lightAngle','Light Angle',p.lightAngle||135,0,360,5)}
+    ${_ctrlColor('mat_col','Surface Color',p.color||'#ffffff')}
+    ${_ctrlColor('mat_tint','Tint / Accent',p.tint||'#6366f1')}
+    ${_ctrlColor('mat_bg','Background A',p.bg||'#6366f1')}
+    ${_ctrlColor('mat_bgB','Background B',p.bgB||'#ec4899')}
   </div>`
 }
 
@@ -2030,25 +2575,68 @@ function _ctrlNeural(){
 function _ctrlAuroraGen(){
   const p=S.params.auroragen
   return `<div class="rp-section">
-    ${_ctrl('aug_bands','Band Count',p.bands,2,8,1)}
+    ${_moodRow('auroragen')}
+    ${_ctrlSelect('aug_style','Style',p.style||'ios',[
+      ['ios','iOS Aurora (blobs)'],['northern','Northern Lights (waves)'],
+      ['material','Material You'],['sonoma','macOS Sonoma'],['bloom','Windows Bloom']
+    ])}
+    ${_ctrl('aug_bands','Blobs / Bands',p.bands,2,9,1)}
+    ${_ctrl('aug_blobSize','Blob Size',p.blobSize||.7,.2,1.2,.05)}
     ${_ctrl('aug_int','Intensity',p.intensity,0,1,.01)}
-    ${_ctrl('aug_wave','Wave Amplitude',p.waveAmp,0,.4,.01)}
+    ${_ctrl('aug_wave','Wave Amplitude',p.waveAmp,0,.5,.01)}
     ${_ctrl('aug_op','Opacity',p.opacity,0,1,.01)}
     ${_ctrl('aug_seed','Seed',p.seed,0,999,1)}
     ${_ctrlColor('aug_bg','Background',p.bg)}
     ${_ctrlColor('aug_ca','Color A',p.colorA)}
     ${_ctrlColor('aug_cb','Color B',p.colorB)}
     ${_ctrlColor('aug_cc','Color C',p.colorC)}
+    ${_ctrlColor('aug_cd','Color D',p.colorD||p.colorA)}
+  </div>`
+}
+
+function _ctrlTopographic(){
+  const p=S.params.topographic
+  return `<div class="rp-section">
+    ${_moodRow('topographic')}
+    ${_ctrl('topo_levels','Contour Levels',p.levels,3,40,1)}
+    ${_ctrl('topo_scale','Scale',p.scale,1,15,.5)}
+    ${_ctrl('topo_lw','Line Weight',p.lineW,.3,5,.25)}
+    ${_ctrl('topo_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('topo_seed','Seed',p.seed,0,999,1)}
+    <div class="toggle-row"><span class="toggle-label">Filled bands</span><div class="toggle${p.filled?' on':''}" id="toggle_filled"></div></div>
+    ${_ctrlColor('topo_bg','Background',p.colorBg)}
+    ${_ctrlColor('topo_ca','Line Color A',p.colorA)}
+    ${_ctrlColor('topo_cb','Line Color B',p.colorB)}
+  </div>`
+}
+
+function _ctrlNeural(){
+  const p=S.params.neural
+  return `<div class="rp-section">
+    ${_moodRow('neural')}
+    ${_ctrl('neu_count','Node Count',p.nodeCount,10,300,5)}
+    ${_ctrl('neu_size','Node Size',p.nodeSize,.5,12,.5)}
+    ${_ctrl('neu_radius','Connect Radius',p.connectRadius,.05,.5,.01)}
+    ${_ctrl('neu_edgeop','Edge Opacity',p.edgeOpacity,0,1,.01)}
+    ${_ctrl('neu_layers','Depth Layers',p.layers||1,1,4,1)}
+    ${_ctrl('neu_op','Opacity',p.opacity,0,1,.01)}
+    ${_ctrl('neu_seed','Seed',p.seed,0,999,1)}
+    <div class="toggle-row"><span class="toggle-label">Pulse effect</span><div class="toggle${p.pulse?' on':''}" id="toggle_pulse"></div></div>
+    ${_ctrlColor('neu_bg','Background',p.bg)}
+    ${_ctrlColor('neu_nc','Node Color',p.nodeColor)}
+    ${_ctrlColor('neu_ec','Edge Color',p.edgeColor)}
   </div>`
 }
 
 function _ctrlParticles(){
   const p=S.params.particles
   return `<div class="rp-section">
-    ${_ctrl('par_count','Particle Count',p.count,50,3000,50)}
-    ${_ctrl('par_min','Min Size',p.minSize,.2,5,.1)}
-    ${_ctrl('par_max','Max Size',p.maxSize,.5,15,.5)}
-    ${_ctrl('par_glow','Glow Radius',p.glow,0,6,.1)}
+    ${_moodRow('particles')}
+    ${_ctrl('par_count','Particle Count',p.count,50,4000,50)}
+    ${_ctrl('par_min','Min Size',p.minSize,.2,6,.1)}
+    ${_ctrl('par_max','Max Size',p.maxSize,.5,18,.5)}
+    ${_ctrl('par_glow','Glow Radius',p.glow,0,8,.1)}
+    ${_ctrl('par_depth','Depth Layers',p.depthLayers||1,1,5,1)}
     ${_ctrl('par_op','Opacity',p.opacity,0,1,.01)}
     ${_ctrl('par_seed','Seed',p.seed,0,999,1)}
     ${_ctrlColor('par_bg','Background',p.bg)}
@@ -2060,10 +2648,28 @@ function _ctrlParticles(){
 function _ctrlIsometric(){
   const p=S.params.isometric
   return `<div class="rp-section">
-    ${_ctrl('iso_size','Tile Size',p.size,16,120,2)}
-    ${_ctrl('iso_depth','Cube Depth',p.depth,.1,2,.05)}
+    ${_moodRow('isometric')}
+    ${_ctrlSelect('iso_type','Style',p.type||'cubes',[
+      ['cubes',    'Isometric Cubes'],
+      ['blocks',   'Random Blocks'],
+      ['podium',   'Podium / Stage'],
+      ['diamond',  'Flat Diamond Grid'],
+      ['wireframe','Wireframe Grid'],
+      ['random',   'Mixed Random'],
+    ])}
+    ${_ctrl('iso_size','Tile Size',p.size,12,120,2)}
+    ${_ctrl('iso_depth','Cube Height',p.depth,.05,2,.05)}
+    ${_ctrl('iso_heightVar','Height Variance',p.heightVariance||0,0,1,.05)}
+    ${_ctrl('iso_lightAngle','Light Angle',p.lightAngle??135,0,360,5)}
+    ${_ctrl('iso_shadowInt','Shadow Depth',p.shadowInt??0.45,0,1,.01)}
+    ${_ctrl('iso_gap','Tile Gap',p.gap??1,0,14,.5)}
+    ${_ctrl('iso_lineW','Line Width',p.lineW??0.8,.1,4,.1)}
+    ${_ctrl('iso_rotation','Rotation',p.rotation||0,-45,45,1)}
+    ${_ctrl('iso_jitter','Jitter',p.jitter||0,0,1,.01)}
+    ${_ctrl('iso_gradOverlay','Vignette',p.gradOverlay??0.3,0,1,.01)}
+    ${_ctrl('iso_noiseDistort','Noise Distort',p.noiseDistort||0,0,1,.01)}
     ${_ctrl('iso_op','Opacity',p.opacity,0,1,.01)}
-    <div class="toggle-row"><span class="toggle-label">Filled cubes</span><div class="toggle${p.filled?' on':''}" id="toggle_filled"></div></div>
+    ${_ctrl('iso_seed','Seed',p.seed||0,0,999,1)}
     ${_ctrlColor('iso_bg','Background',p.bg)}
     ${_ctrlColor('iso_top','Top Face',p.colorTop)}
     ${_ctrlColor('iso_left','Left Face',p.colorLeft)}
@@ -2074,10 +2680,14 @@ function _ctrlIsometric(){
 function _ctrlHolographic(){
   const p=S.params.holographic
   return `<div class="rp-section">
-    ${_ctrlSelect('holo_style','Style',p.style,[['foil','Holographic Foil'],['chrome','Chrome Metal'],['oilslick','Oil Slick'],['rainbow','Rainbow']])}
+    ${_moodRow('holographic')}
+    ${_ctrlSelect('holo_style','Style',p.style,[
+      ['foil','Holographic Foil'],['chrome','Chrome Metal'],
+      ['oilslick','Oil Slick'],['rainbow','Rainbow Spectrum']
+    ])}
     ${_ctrl('holo_angle','Angle',p.angle,0,360,1)}
     ${_ctrl('holo_int','Intensity',p.intensity,0,1,.01)}
-    ${_ctrl('holo_grain','Grain',p.grain,0,.3,.005)}
+    ${_ctrl('holo_grain','Surface Grain',p.grain,0,.3,.005)}
     ${_ctrl('holo_op','Opacity',p.opacity,0,1,.01)}
   </div>`
 }
@@ -2085,11 +2695,13 @@ function _ctrlHolographic(){
 function _ctrlCircuit(){
   const p=S.params.circuit
   return `<div class="rp-section">
+    ${_moodRow('circuit')}
     ${_ctrl('cir_density','Trace Density',p.density,1,15,.5)}
-    ${_ctrl('cir_lw','Line Width',p.lineW,.5,5,.5)}
+    ${_ctrl('cir_lw','Line Width',p.lineW,.5,5,.25)}
     ${_ctrl('cir_glow','Glow Intensity',p.glowIntensity,0,1,.01)}
     ${_ctrl('cir_op','Opacity',p.opacity,0,1,.01)}
     ${_ctrl('cir_seed','Seed',p.seed,0,999,1)}
+    <div class="toggle-row"><span class="toggle-label">IC Components</span><div class="toggle${p.components?' on':''}" id="toggle_components"></div></div>
     ${_ctrlColor('cir_bg','Background',p.bg)}
     ${_ctrlColor('cir_tc','Trace Color',p.traceColor)}
     ${_ctrlColor('cir_gc','Glow Color',p.glowColor)}
@@ -2099,6 +2711,7 @@ function _ctrlCircuit(){
 function _ctrlFluid(){
   const p=S.params.fluid
   return `<div class="rp-section">
+    ${_moodRow('fluid')}
     ${_ctrl('flu_scale','Scale',p.scale,1,15,.5)}
     ${_ctrl('flu_visc','Viscosity',p.viscosity,0,1,.01)}
     ${_ctrl('flu_turb','Turbulence',p.turbulence,0,2,.05)}
@@ -2235,6 +2848,11 @@ function _bindControls(){
     })
   })
 
+  // mood buttons
+  area.querySelectorAll('.mood-btn').forEach(el=>{
+    el.addEventListener('click',()=>_applyMood(el.dataset.gen, el.dataset.mood))
+  })
+
   // add/remove stop
   document.getElementById('addStop')?.addEventListener('click',()=>{
     S.params.gradient.stops.push(_randColor()); buildControls(); render(true)
@@ -2268,40 +2886,51 @@ function _mapControl(id, val){
   const p = S.params[S.gen]
   const map = {
     // gradient
-    c_grad_type:'type',c_grad_angle:'angle',c_grad_cx:'cx',c_grad_cy:'cy',
+    c_grad_type:'type',c_grad_angle:'angle',c_grad_cx:'cx',c_grad_cy:'cy',c_grad_grain:'grain',
     c_stop0:'stops.0',c_stop1:'stops.1',c_stop2:'stops.2',c_stop3:'stops.3',c_stop4:'stops.4',
+    c_meshpt0:'meshPts.0',c_meshpt1:'meshPts.1',c_meshpt2:'meshPts.2',
+    c_meshpt3:'meshPts.3',c_meshpt4:'meshPts.4',c_meshpt5:'meshPts.5',
+    c_meshpt6:'meshPts.6',c_meshpt7:'meshPts.7',c_meshpt8:'meshPts.8',
     // geometric
     c_geo_type:'type',c_geo_size:'size',c_geo_gap:'gap',c_geo_rot:'rotation',
-    c_geo_lw:'lineW',c_geo_op:'opacity',c_geo_ca:'colorA',c_geo_cb:'colorB',
+    c_geo_lw:'lineW',c_geo_op:'opacity',c_geo_ca:'colorA',c_geo_cb:'colorB',c_geo_blur:'blur',
     // noise
     c_noise_type:'type',c_noise_scale:'scale',c_noise_oct:'octaves',
-    c_noise_turb:'turbulence',c_noise_op:'opacity',c_noise_seed:'seed',
+    c_noise_turb:'turbulence',c_noise_warp:'warp',c_noise_contrast:'contrast',
+    c_noise_dir:'direction',c_noise_op:'opacity',c_noise_seed:'seed',
     c_noise_ca:'colorA',c_noise_cb:'colorB',c_noise_cc:'colorC',
     // flowfield
-    c_ff_type:'type',c_ff_count:'count',c_ff_step:'stepLen',c_ff_lw:'lineW',
-    c_ff_speed:'speed',c_ff_op:'opacity',c_ff_seed:'seed',
+    c_ff_type:'type',c_ff_colorMode:'colorMode',c_ff_count:'count',c_ff_step:'stepLen',
+    c_ff_lw:'lineW',c_ff_speed:'speed',c_ff_poles:'poles',c_ff_trailLen:'trailLen',
+    c_ff_op:'opacity',c_ff_seed:'seed',
     c_ff_bg:'bg',c_ff_ca:'colorA',c_ff_cb:'colorB',
     // material
     c_mat_type:'type',c_mat_blur:'blur',c_mat_op:'opacity',c_mat_grain:'grain',
-    c_mat_col:'color',c_mat_tint:'tint',
+    c_mat_elev:'elevation',c_mat_lightAngle:'lightAngle',
+    c_mat_col:'color',c_mat_tint:'tint',c_mat_bg:'bg',c_mat_bgB:'bgB',
     // topographic
     c_topo_levels:'levels',c_topo_scale:'scale',c_topo_lw:'lineW',
     c_topo_op:'opacity',c_topo_seed:'seed',
     c_topo_bg:'colorBg',c_topo_ca:'colorA',c_topo_cb:'colorB',
     // neural
     c_neu_count:'nodeCount',c_neu_size:'nodeSize',c_neu_radius:'connectRadius',
-    c_neu_edgeop:'edgeOpacity',c_neu_op:'opacity',c_neu_seed:'seed',
+    c_neu_edgeop:'edgeOpacity',c_neu_layers:'layers',c_neu_op:'opacity',c_neu_seed:'seed',
     c_neu_bg:'bg',c_neu_nc:'nodeColor',c_neu_ec:'edgeColor',
     // aurora gen
-    c_aug_bands:'bands',c_aug_int:'intensity',c_aug_wave:'waveAmp',
+    c_aug_style:'style',c_aug_bands:'bands',c_aug_blobSize:'blobSize',
+    c_aug_int:'intensity',c_aug_wave:'waveAmp',
     c_aug_op:'opacity',c_aug_seed:'seed',
-    c_aug_bg:'bg',c_aug_ca:'colorA',c_aug_cb:'colorB',c_aug_cc:'colorC',
+    c_aug_bg:'bg',c_aug_ca:'colorA',c_aug_cb:'colorB',c_aug_cc:'colorC',c_aug_cd:'colorD',
     // particles
     c_par_count:'count',c_par_min:'minSize',c_par_max:'maxSize',
-    c_par_glow:'glow',c_par_op:'opacity',c_par_seed:'seed',
+    c_par_glow:'glow',c_par_depth:'depthLayers',c_par_op:'opacity',c_par_seed:'seed',
     c_par_bg:'bg',c_par_ca:'colorA',c_par_cb:'colorB',
     // isometric
-    c_iso_size:'size',c_iso_depth:'depth',c_iso_op:'opacity',
+    c_iso_type:'type',c_iso_size:'size',c_iso_depth:'depth',c_iso_heightVar:'heightVariance',
+    c_iso_lightAngle:'lightAngle',c_iso_shadowInt:'shadowInt',
+    c_iso_gap:'gap',c_iso_lineW:'lineW',c_iso_rotation:'rotation',
+    c_iso_jitter:'jitter',c_iso_gradOverlay:'gradOverlay',c_iso_noiseDistort:'noiseDistort',
+    c_iso_op:'opacity',c_iso_seed:'seed',
     c_iso_bg:'bg',c_iso_top:'colorTop',c_iso_left:'colorLeft',c_iso_right:'colorRight',
     // holographic
     c_holo_style:'style',c_holo_angle:'angle',c_holo_int:'intensity',
@@ -2319,9 +2948,219 @@ function _mapControl(id, val){
   if(path.startsWith('stops.')){
     const idx=+path.split('.')[1]; if(!p.stops) p.stops=[]
     p.stops[idx]=val
+  } else if(path.startsWith('meshPts.')){
+    const idx=+path.split('.')[1]; if(!p.meshPts) p.meshPts=[]
+    p.meshPts[idx]=val
   } else {
     p[path]=val
   }
+}
+
+// ═══════════════════════════════════════════════════════════
+// MOBILE PHONE PREVIEW
+// ═══════════════════════════════════════════════════════════
+function showMobilePreview(){
+  const overlay=document.createElement('div')
+  overlay.style.cssText='position:fixed;inset:0;background:#000b;z-index:150;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;backdrop-filter:blur(8px)'
+
+  const layouts=['Home','App','Splash','Onboarding']
+  let activeLayout='Home', darkMode=true
+  const btnsHTML=layouts.map(l=>`<button class="btn sm phone-layout-btn${l==='Home'?' active':''}" data-layout="${l}">${l}</button>`).join('')
+
+  overlay.innerHTML=`
+    <div style="display:flex;align-items:center;gap:12px;margin-bottom:4px">
+      <div style="color:#fff;font-size:14px;font-weight:700">📱 Mobile Preview</div>
+      <button class="btn sm" id="ph-darkmode" style="background:#333;border-color:#555;color:#fff">🌙 Dark</button>
+      <button class="btn sm" id="ph-close" style="margin-left:8px">✕ Close</button>
+    </div>
+    <canvas id="phone-canvas" style="border-radius:16px;box-shadow:0 30px 80px #000a"></canvas>
+    <div style="display:flex;gap:6px">${btnsHTML}</div>
+  `
+  document.body.appendChild(overlay)
+
+  const pc=overlay.querySelector('#phone-canvas')
+  function drawPhone(){
+    const SCALE=0.8
+    const PW=Math.round(390*SCALE), PH=Math.round(844*SCALE)
+    const FRAME=Math.round(14*SCALE), RAD=Math.round(48*SCALE)
+    pc.width=PW+FRAME*2; pc.height=PH+FRAME*2
+    const ctx2=pc.getContext('2d')
+
+    // Phone body
+    ctx2.save()
+    _roundRect(ctx2, 0, 0, pc.width, pc.height, RAD+4)
+    const bodyGrad=ctx2.createLinearGradient(0,0,pc.width,pc.height)
+    bodyGrad.addColorStop(0,'#2c2c2e'); bodyGrad.addColorStop(1,'#1c1c1e')
+    ctx2.fillStyle=bodyGrad; ctx2.fill()
+    ctx2.restore()
+
+    // Screen clip
+    ctx2.save()
+    _roundRect(ctx2, FRAME, FRAME, PW, PH, RAD-2)
+    ctx2.clip()
+    // Draw background
+    ctx2.drawImage(canvas, 0, 0, PW, PH)
+    // UI overlay
+    _drawPhoneUI(ctx2, FRAME, FRAME, PW, PH, SCALE, activeLayout, darkMode)
+    ctx2.restore()
+
+    // Dynamic Island
+    const diW=Math.round(58*SCALE), diH=Math.round(32*SCALE)
+    const diX=FRAME+PW/2-diW/2, diY=FRAME+Math.round(12*SCALE)
+    ctx2.fillStyle='#000'
+    ctx2.beginPath(); ctx2.roundRect(diX,diY,diW,diH,diH/2); ctx2.fill()
+
+    // Side button
+    ctx2.fillStyle='#3a3a3c'
+    ctx2.beginPath(); ctx2.roundRect(pc.width-3,FRAME+PH*.28,3,Math.round(60*SCALE),2); ctx2.fill()
+    ctx2.beginPath(); ctx2.roundRect(0,FRAME+PH*.22,3,Math.round(40*SCALE),2); ctx2.fill()
+    ctx2.beginPath(); ctx2.roundRect(0,FRAME+PH*.34,3,Math.round(40*SCALE),2); ctx2.fill()
+  }
+
+  function _roundRect(ctx2,x,y,w,h,r){
+    ctx2.beginPath(); ctx2.moveTo(x+r,y)
+    ctx2.lineTo(x+w-r,y); ctx2.arcTo(x+w,y,x+w,y+r,r)
+    ctx2.lineTo(x+w,y+h-r); ctx2.arcTo(x+w,y+h,x+w-r,y+h,r)
+    ctx2.lineTo(x+r,y+h); ctx2.arcTo(x,y+h,x,y+h-r,r)
+    ctx2.lineTo(x,y+r); ctx2.arcTo(x,y,x+r,y,r)
+    ctx2.closePath()
+  }
+
+  function _drawPhoneUI(ctx2,ox,oy,pw,ph,sc,layout,dark){
+    const tc=dark?'rgba(255,255,255,':'rgba(0,0,0,'
+    const cardBg=dark?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'
+
+    // Status bar
+    ctx2.fillStyle=tc+'0.9)'; ctx2.font=`bold ${Math.round(13*sc)}px -apple-system,sans-serif`
+    ctx2.fillText('9:41',ox+Math.round(20*sc),oy+Math.round(52*sc))
+    // Battery icon
+    const bx=ox+pw-Math.round(50*sc), by=oy+Math.round(40*sc)
+    ctx2.strokeStyle=tc+'0.8)'; ctx2.lineWidth=1.2
+    ctx2.strokeRect(bx,by,Math.round(22*sc),Math.round(12*sc))
+    ctx2.fillStyle=tc+'0.8)'; ctx2.fillRect(bx+Math.round(1*sc),by+Math.round(1*sc),Math.round(16*sc),Math.round(10*sc))
+    ctx2.fillRect(bx+Math.round(23*sc),by+Math.round(4*sc),Math.round(2*sc),Math.round(5*sc))
+    // Signal dots
+    for(let i=0;i<4;i++){
+      ctx2.beginPath(); ctx2.arc(ox+pw-Math.round((80+i*10)*sc),oy+Math.round(46*sc),Math.round((i+1)*1.2*sc),0,Math.PI*2)
+      ctx2.fill()
+    }
+
+    if(layout==='Home'){
+      // 4×5 grid of app icons
+      const iconS=Math.round(52*sc), iconR=Math.round(12*sc), gx=Math.round(20*sc), gy=Math.round(90*sc), cols=4
+      const colors=['#6366f1','#ec4899','#06b6d4','#22c55e','#f59e0b','#ef4444','#8b5cf6','#14b8a6','#f97316','#3b82f6','#a855f7','#10b981','#e11d48','#0ea5e9','#84cc16','#d946ef','#fb923c','#06b6d4','#6366f1','#ec4899']
+      for(let i=0;i<20;i++){
+        const col2=i%cols, row=Math.floor(i/cols)
+        const ix=ox+gx+col2*(iconS+Math.round(16*sc)), iy=oy+gy+row*(iconS+Math.round(20*sc))
+        ctx2.beginPath(); ctx2.roundRect(ix,iy,iconS,iconS,iconR); ctx2.fillStyle=colors[i]; ctx2.fill()
+        ctx2.fillStyle='rgba(255,255,255,0.15)'; ctx2.fill()
+      }
+      // Dock
+      const dockY=oy+ph-Math.round(90*sc), dockH=Math.round(72*sc)
+      ctx2.fillStyle='rgba(255,255,255,0.12)'; ctx2.beginPath()
+      ctx2.roundRect(ox+Math.round(16*sc),dockY,pw-Math.round(32*sc),dockH,Math.round(18*sc)); ctx2.fill()
+      for(let i=0;i<4;i++){
+        const ix=ox+Math.round(30*sc)+i*(iconS+Math.round(18*sc)), iy=dockY+Math.round(10*sc)
+        ctx2.beginPath(); ctx2.roundRect(ix,iy,iconS,iconS,iconR); ctx2.fillStyle=['#6366f1','#ec4899','#22c55e','#f59e0b'][i]; ctx2.fill()
+      }
+    } else if(layout==='App'){
+      // Nav bar
+      ctx2.fillStyle=cardBg; ctx2.fillRect(ox,oy,pw,Math.round(56*sc))
+      ctx2.fillStyle=tc+'0.85)'; ctx2.font=`600 ${Math.round(16*sc)}px -apple-system,sans-serif`
+      ctx2.textAlign='center'; ctx2.fillText('My App',ox+pw/2,oy+Math.round(38*sc)); ctx2.textAlign='left'
+      // Cards
+      for(let i=0;i<3;i++){
+        const cy2=oy+Math.round((80+i*140)*sc)
+        ctx2.fillStyle=cardBg; ctx2.beginPath()
+        ctx2.roundRect(ox+Math.round(16*sc),cy2,pw-Math.round(32*sc),Math.round(120*sc),Math.round(14*sc)); ctx2.fill()
+        ctx2.fillStyle=tc+'0.6)'; ctx2.font=`600 ${Math.round(14*sc)}px sans-serif`
+        ctx2.fillText('Card Title',ox+Math.round(30*sc),cy2+Math.round(30*sc))
+        ctx2.fillStyle=tc+'0.35)'; ctx2.font=`${Math.round(11*sc)}px sans-serif`
+        ctx2.fillText('Subtitle text here',ox+Math.round(30*sc),cy2+Math.round(50*sc))
+      }
+      // Tab bar
+      ctx2.fillStyle=cardBg; ctx2.fillRect(ox,oy+ph-Math.round(60*sc),pw,Math.round(60*sc))
+      const tabIcons=['⌂','🔍','＋','♡','👤']
+      tabIcons.forEach((ic,i)=>{
+        ctx2.fillStyle=i===0?tc+'1)':tc+'0.45)'
+        ctx2.font=`${Math.round(20*sc)}px sans-serif`; ctx2.textAlign='center'
+        ctx2.fillText(ic,ox+(i+0.5)*pw/tabIcons.length,oy+ph-Math.round(22*sc))
+      }); ctx2.textAlign='left'
+    } else if(layout==='Splash'){
+      // Centered logo + name
+      const cx2=ox+pw/2, cy2=oy+ph*.42
+      ctx2.fillStyle='rgba(255,255,255,0.15)'; ctx2.beginPath()
+      ctx2.roundRect(cx2-Math.round(44*sc),cy2-Math.round(44*sc),Math.round(88*sc),Math.round(88*sc),Math.round(22*sc)); ctx2.fill()
+      ctx2.fillStyle='rgba(255,255,255,0.9)'; ctx2.font=`bold ${Math.round(32*sc)}px sans-serif`
+      ctx2.textAlign='center'; ctx2.fillText('⬡',cx2,cy2+Math.round(12*sc))
+      ctx2.font=`700 ${Math.round(20*sc)}px -apple-system,sans-serif`
+      ctx2.fillText('BG Studio',cx2,cy2+Math.round(66*sc))
+      ctx2.fillStyle=tc+'0.4)'; ctx2.font=`${Math.round(13*sc)}px sans-serif`
+      ctx2.fillText('Background Generator',cx2,cy2+Math.round(88*sc))
+      ctx2.textAlign='left'
+    } else if(layout==='Onboarding'){
+      // Hero + text + CTA
+      ctx2.fillStyle=tc+'0.9)'; ctx2.font=`800 ${Math.round(26*sc)}px -apple-system,sans-serif`
+      ctx2.textAlign='center'
+      ctx2.fillText('Create stunning',ox+pw/2,oy+ph*.55)
+      ctx2.fillText('backgrounds',ox+pw/2,oy+ph*.55+Math.round(36*sc))
+      ctx2.fillStyle=tc+'0.5)'; ctx2.font=`${Math.round(14*sc)}px sans-serif`
+      ctx2.fillText('Professional-quality textures',ox+pw/2,oy+ph*.55+Math.round(70*sc))
+      ctx2.fillText('for your mobile apps',ox+pw/2,oy+ph*.55+Math.round(90*sc))
+      // CTA button
+      const btnW=Math.round(200*sc), btnH=Math.round(48*sc)
+      const btnX=ox+pw/2-btnW/2, btnY=oy+ph*.78
+      const btnGrad=ctx2.createLinearGradient(btnX,btnY,btnX+btnW,btnY)
+      btnGrad.addColorStop(0,'#6366f1'); btnGrad.addColorStop(1,'#ec4899')
+      ctx2.fillStyle=btnGrad; ctx2.beginPath()
+      ctx2.roundRect(btnX,btnY,btnW,btnH,btnH/2); ctx2.fill()
+      ctx2.fillStyle='#fff'; ctx2.font=`600 ${Math.round(15*sc)}px sans-serif`
+      ctx2.fillText('Get Started →',ox+pw/2,btnY+btnH*.64)
+      ctx2.textAlign='left'
+    }
+    // Home indicator
+    const hiW=Math.round(120*sc)
+    ctx2.fillStyle=tc+'0.3)'; ctx2.beginPath()
+    ctx2.roundRect(ox+pw/2-hiW/2,oy+ph-Math.round(10*sc),hiW,Math.round(5*sc),3); ctx2.fill()
+  }
+
+  drawPhone()
+
+  overlay.querySelector('#ph-close').onclick=()=>overlay.remove()
+  overlay.querySelector('#ph-darkmode').addEventListener('click',function(){
+    darkMode=!darkMode; this.textContent=darkMode?'🌙 Dark':'☀ Light'; drawPhone()
+  })
+  overlay.querySelectorAll('.phone-layout-btn').forEach(btn=>{
+    btn.addEventListener('click',()=>{
+      overlay.querySelectorAll('.phone-layout-btn').forEach(b=>b.classList.remove('active'))
+      btn.classList.add('active'); activeLayout=btn.dataset.layout; drawPhone()
+    })
+  })
+  overlay.addEventListener('click',e=>{ if(e.target===overlay) overlay.remove() })
+}
+
+// ═══════════════════════════════════════════════════════════
+// EXPORT MODAL
+// ═══════════════════════════════════════════════════════════
+function showExportModal(){
+  const modal=document.getElementById('export-modal')
+  modal.style.display='flex'
+}
+
+function exportAtSize(w2,h2,label){
+  const tmp=document.createElement('canvas'); tmp.width=w2; tmp.height=h2
+  const tc2=tmp.getContext('2d')
+  // Re-render at target size
+  const oldW=S.w, oldH=S.h
+  S.w=w2; S.h=h2
+  canvas.width=w2; canvas.height=h2
+  _doRender()
+  const a=document.createElement('a'); a.href=canvas.toDataURL('image/png')
+  a.download=`bg-${S.gen}-${label.replace(/\s+/g,'-')}-${w2}x${h2}.png`; a.click()
+  // Restore
+  S.w=oldW; S.h=oldH; canvas.width=oldW; canvas.height=oldH; _doRender()
+  document.getElementById('export-modal').style.display='none'
+  toast(`✓ Exported ${w2}×${h2}`)
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2414,28 +3253,47 @@ function _svgParticles(w,h,p){
 
 // ── Isometric SVG ─────────────────────────────────────────────
 function _svgIsometricSVG(w,h,p){
-  const {size,colorTop,colorLeft,colorRight,bg,depth,opacity,filled} = p
-  const TW=size, TH=size*0.5, cubeH=depth*TH
-  const cols=Math.ceil(w/TW)+6, rows=Math.ceil(h/TH)+6
-  const shapes=[]
-  const maxD=cols+rows
-  for(let d=0;d<=maxD;d++) for(let col=0;col<cols;col++){
-    const row=d-col; if(row<0||row>=rows) continue
-    const cx=(col-row)*TW/2+w/2, cy=(col+row)*TH/2-(rows*TH/4)
-    if(cx+TW<0||cx-TW>w||cy+TH+cubeH<0||cy-cubeH>h) continue
-    const tp=`${cx.toFixed(1)},${(cy-cubeH).toFixed(1)}`
-    const tr=`${(cx+TW/2).toFixed(1)},${(cy+TH/2-cubeH).toFixed(1)}`
-    const tb=`${cx.toFixed(1)},${(cy+TH-cubeH).toFixed(1)}`
-    const tl=`${(cx-TW/2).toFixed(1)},${(cy+TH/2-cubeH).toFixed(1)}`
-    const gb=`${cx.toFixed(1)},${(cy+TH).toFixed(1)}`
-    const gl=`${(cx-TW/2).toFixed(1)},${(cy+TH/2).toFixed(1)}`
-    const gr2=`${(cx+TW/2).toFixed(1)},${(cy+TH/2).toFixed(1)}`
-    if(filled){
-      shapes.push(`    <polygon points="${tp} ${tr} ${tb} ${tl}" fill="${colorTop}" opacity="${opacity}"/>`)
-      shapes.push(`    <polygon points="${tl} ${tb} ${gb} ${gl}" fill="${colorLeft}" opacity="${opacity}"/>`)
-      shapes.push(`    <polygon points="${tb} ${tr} ${gr2} ${gb}" fill="${colorRight}" opacity="${opacity}"/>`)
+  const type=p.type||'cubes', size=p.size||48, gap=p.gap??1
+  const colorTop=p.colorTop||'#6366f1', colorLeft=p.colorLeft||'#1e1b4b'
+  const colorRight=p.colorRight||'#312e81', bg=p.bg||'#0b0b10'
+  const depth=p.depth??0.7, opacity=p.opacity??1, seed=p.seed||0
+  const heightVar=p.heightVariance??0.5
+  const TW=size*2, TH=size, maxCubeH=size*depth
+  const hw=TW/2-gap, hh=TH/2-gap*0.5
+  function srand(n){let h=Math.imul(n^(n>>>16),0x45d9f3b)^Math.imul((seed*2654435761)|0,0x1b873593);h=Math.imul(h^(h>>>13),0xc2b2ae35);return(h>>>0)/0xFFFFFFFF}
+  const MARGIN=5, Umax=Math.ceil(w/TW)+MARGIN, Vmax=Math.ceil(h/TH)+MARGIN+Math.ceil(maxCubeH/(TH/2))+2
+  const cx0=w/2, cy0=h/2, shapes=[], tiles=[]
+  const wireframe=(type==='wireframe'), flat=(type==='diamond')
+  for(let U=-Umax;U<=Umax;U++) for(let V=-Vmax;V<=Vmax;V++){
+    if(((U+V)&1)!==0) continue
+    const col=(U+V)>>1, row=(V-U)>>1
+    let tileH=maxCubeH
+    if(flat) tileH=0
+    else if(wireframe) tileH=maxCubeH*0.4
+    else if(type==='blocks'||type==='random'){const hr=srand(col*7919+row*4937);tileH=type==='random'&&hr<0.14?0:maxCubeH*Math.max(0.06,hr*heightVar*1.4)}
+    else if(type==='podium'){const d2=Math.sqrt(col*col+row*row),podR=2.5;tileH=d2<=podR?maxCubeH*(1+heightVar*0.6):maxCubeH*(Math.max(0,1-(d2-podR)/(podR*2.8))*0.85+0.04)}
+    const sx=cx0+U*(TW/2), sy=cy0+V*(TH/2)
+    tiles.push({V,sx,sy,tileH,col,row})
+  }
+  tiles.sort((a,b)=>a.V-b.V)
+  const op=opacity.toFixed(2)
+  for(const {sx,sy,tileH} of tiles){
+    const pt=`${sx.toFixed(1)},${(sy-hh-tileH).toFixed(1)}`
+    const pr=`${(sx+hw).toFixed(1)},${(sy-tileH).toFixed(1)}`
+    const pb=`${sx.toFixed(1)},${(sy+hh-tileH).toFixed(1)}`
+    const pl=`${(sx-hw).toFixed(1)},${(sy-tileH).toFixed(1)}`
+    const gr=`${(sx+hw).toFixed(1)},${sy.toFixed(1)}`
+    const gbo=`${sx.toFixed(1)},${(sy+hh).toFixed(1)}`
+    const gl=`${(sx-hw).toFixed(1)},${sy.toFixed(1)}`
+    if(wireframe){
+      shapes.push(`  <polygon points="${pt} ${pr} ${pb} ${pl}" fill="none" stroke="${colorTop}" stroke-width="${(p.lineW||0.8).toFixed(1)}" stroke-opacity="${op}"/>`)
+      if(tileH>1){shapes.push(`  <line x1="${pl.split(',')[0]}" y1="${pl.split(',')[1]}" x2="${gl.split(',')[0]}" y2="${gl.split(',')[1]}" stroke="${colorTop}" stroke-width="${(p.lineW||0.8)*0.5}" stroke-opacity="${(opacity*0.4).toFixed(2)}"/>`)}
     } else {
-      shapes.push(`    <polygon points="${tp} ${tr} ${tb} ${tl}" fill="none" stroke="${colorTop}" stroke-width="0.7" opacity="${opacity}"/>`)
+      shapes.push(`  <polygon points="${pt} ${pr} ${pb} ${pl}" fill="${colorTop}" opacity="${op}"/>`)
+      if(tileH>0.5){
+        shapes.push(`  <polygon points="${pl} ${pb} ${gbo} ${gl}" fill="${colorLeft}" opacity="${op}"/>`)
+        shapes.push(`  <polygon points="${pb} ${pr} ${gr} ${gbo}" fill="${colorRight}" opacity="${op}"/>`)
+      }
     }
   }
   return `<svg xmlns="http://www.w3.org/2000/svg" width="${w}" height="${h}" viewBox="0 0 ${w} ${h}">
@@ -2845,7 +3703,8 @@ document.querySelectorAll('.nav-item[data-gen]').forEach(el=>{
   })
 })
 document.getElementById('canvas-size-sel').addEventListener('change',e=>applySize(e.target.value))
-document.getElementById('btn-export').addEventListener('click',exportPNG)
+document.getElementById('btn-export').addEventListener('click',showExportModal)
+document.getElementById('btn-phonePreview').addEventListener('click',showMobilePreview)
 document.getElementById('btn-copySVG').addEventListener('click',exportSVG)
 document.getElementById('btn-copyCSS').addEventListener('click',copyCSS)
 document.getElementById('btn-copyCSSBottom').addEventListener('click',copyCSS)
@@ -3793,11 +4652,77 @@ document.addEventListener('click', e => {
 // Bind initial chips
 bindChips()
 
+// ── EXPORT MODAL CLOSE ────────────────────────────────────────
+document.getElementById('export-modal').addEventListener('click',e=>{
+  if(e.target===document.getElementById('export-modal'))
+    document.getElementById('export-modal').style.display='none'
+})
+
 // ── BOOT ──────────────────────────────────────────────────────
 selectGen('gradient')
 render(true)
 document.getElementById('btn-realtime').classList.add('active')
 _updateButtonVisibility('gradient')
 </script>
+
+<!-- ═══════════════ EXPORT MODAL ═══════════════ -->
+<div id="export-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.75);z-index:9999;align-items:center;justify-content:center">
+  <div style="background:#1a1a2e;border:1px solid #2a2a4a;border-radius:16px;padding:28px;width:480px;max-width:95vw;box-shadow:0 24px 64px #000a">
+    <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:20px">
+      <h2 style="color:#e2e8f0;font-size:1.1rem;font-weight:700;margin:0">⬇ Export at Size</h2>
+      <button onclick="document.getElementById('export-modal').style.display='none'" style="background:none;border:none;color:#94a3b8;font-size:1.4rem;cursor:pointer;line-height:1">×</button>
+    </div>
+    <p style="color:#64748b;font-size:.8rem;margin:0 0 18px">Re-renders at the target resolution — no upscaling artifacts.</p>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:18px">
+      <!-- Mobile -->
+      <div style="color:#94a3b8;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;grid-column:1/-1;margin-top:6px">📱 Mobile</div>
+      <button class="btn" onclick="exportAtSize(1179,2556,'iPhone-15-Pro')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">📱</span>
+        <span><div style="font-weight:600;font-size:.85rem">iPhone 15 Pro</div><div style="font-size:.75rem;color:#64748b">1179 × 2556</div></span>
+      </button>
+      <button class="btn" onclick="exportAtSize(1080,2400,'Android-FHD')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🤖</span>
+        <span><div style="font-weight:600;font-size:.85rem">Android FHD+</div><div style="font-size:.75rem;color:#64748b">1080 × 2400</div></span>
+      </button>
+
+      <!-- App Store / Play Store -->
+      <div style="color:#94a3b8;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;grid-column:1/-1;margin-top:6px">🛒 Store Assets</div>
+      <button class="btn" onclick="exportAtSize(1024,1024,'App-Icon')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🎯</span>
+        <span><div style="font-weight:600;font-size:.85rem">App Icon</div><div style="font-size:.75rem;color:#64748b">1024 × 1024</div></span>
+      </button>
+      <button class="btn" onclick="exportAtSize(1290,2796,'App-Store-Screenshot')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">📸</span>
+        <span><div style="font-weight:600;font-size:.85rem">App Store Screenshot</div><div style="font-size:.75rem;color:#64748b">1290 × 2796</div></span>
+      </button>
+
+      <!-- Web / Social -->
+      <div style="color:#94a3b8;font-size:.75rem;font-weight:600;text-transform:uppercase;letter-spacing:.08em;grid-column:1/-1;margin-top:6px">🌐 Web & Social</div>
+      <button class="btn" onclick="exportAtSize(1200,630,'OG-Banner')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🖼</span>
+        <span><div style="font-weight:600;font-size:.85rem">OG Banner</div><div style="font-size:.75rem;color:#64748b">1200 × 630</div></span>
+      </button>
+      <button class="btn" onclick="exportAtSize(1920,1080,'Wallpaper-1080p')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🖥</span>
+        <span><div style="font-weight:600;font-size:.85rem">Wallpaper 1080p</div><div style="font-size:.75rem;color:#64748b">1920 × 1080</div></span>
+      </button>
+      <button class="btn" onclick="exportAtSize(2560,1440,'Wallpaper-2K')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🖥</span>
+        <span><div style="font-weight:600;font-size:.85rem">Wallpaper 2K</div><div style="font-size:.75rem;color:#64748b">2560 × 1440</div></span>
+      </button>
+      <button class="btn" onclick="exportAtSize(3840,2160,'Wallpaper-4K')" style="justify-content:flex-start;gap:8px;padding:10px 14px;text-align:left">
+        <span style="font-size:1.1em">🖥</span>
+        <span><div style="font-weight:600;font-size:.85rem">Wallpaper 4K</div><div style="font-size:.75rem;color:#64748b">3840 × 2160</div></span>
+      </button>
+    </div>
+
+    <div style="display:flex;gap:10px;align-items:center;padding-top:14px;border-top:1px solid #2a2a4a">
+      <span style="color:#64748b;font-size:.8rem;flex:1">Or export current canvas size:</span>
+      <button class="btn primary" onclick="exportPNG();document.getElementById('export-modal').style.display='none'">⬇ Current Size</button>
+    </div>
+  </div>
+</div>
+
 </body>
 </html>
