@@ -178,6 +178,26 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 
 /* tiling preview */
 #tile-preview-wrap{position:relative;overflow:hidden;border-radius:var(--r2);background:var(--s3);border:1px solid var(--border)}
+
+/* ── LAYER SYSTEM ── */
+#layer-panel{padding:0;flex-shrink:0}
+#layer-list{padding:4px 6px;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
+.layer-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:all.12s;user-select:none}
+.layer-item:hover{background:var(--s3)}
+.layer-item.active{background:#6366f118;border-color:var(--accent)}
+.layer-item .layer-eye{font-size:13px;cursor:pointer;opacity:.7;flex-shrink:0;transition:opacity.15s;width:16px;text-align:center}
+.layer-item.hidden-layer{opacity:.45}
+.layer-item .layer-thumb{width:28px;height:18px;border-radius:3px;flex-shrink:0;border:1px solid #fff1;overflow:hidden}
+.layer-item .layer-name{flex:1;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer-item .layer-ops{display:flex;gap:2px;margin-left:auto;flex-shrink:0}
+.layer-item .layer-ops button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:3px;transition:all.12s;line-height:1}
+.layer-item .layer-ops button:hover{color:var(--text);background:var(--s3)}
+.layer-ops-del:hover{color:var(--red)!important}
+#layer-add-row{display:flex;gap:4px;padding:6px 8px 8px}
+#layer-add-row select{flex:1;font-size:11px;padding:4px 6px;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none}
+#layer-add-row button{background:var(--accent);border:none;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+.layer-mode-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;background:#6366f120;color:var(--accent);border:1px solid #6366f130;margin-left:4px}
+.blend-select{font-size:10.5px!important;padding:2px 4px!important;width:auto!important;border-radius:4px!important}
 </style>
 </head>
 <body>
@@ -231,6 +251,35 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <div class="nav-item" data-gen="reference"><span class="icon">🖼</span>Reference Image</div>
   <div class="nav-item" data-gen="presets"><span class="icon">★</span>Presets</div>
   <div class="nav-divider"></div>
+
+  <!-- ── LAYER SYSTEM ── -->
+  <div id="layer-panel">
+    <div class="nav-section" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
+      <span>Layers <span class="layer-mode-badge" id="layer-count-badge" style="display:none">0</span></span>
+      <button class="btn sm" id="btn-toggle-layers" title="Enable layer compositing">⊞ Enable</button>
+    </div>
+    <div id="layer-list"></div>
+    <div id="layer-add-row" style="display:none">
+      <select id="layer-type-sel">
+        <option value="gradient">Gradient</option>
+        <option value="geometric">Geometric</option>
+        <option value="noise">Noise</option>
+        <option value="flowfield">Flow Field</option>
+        <option value="material">Material</option>
+        <option value="auroragen">Aurora</option>
+        <option value="fluid">Fluid</option>
+        <option value="particles">Particles</option>
+        <option value="neural">Neural Mesh</option>
+        <option value="holographic">Holographic</option>
+        <option value="isometric">Isometric</option>
+        <option value="circuit">Circuit</option>
+        <option value="topographic">Topographic</option>
+      </select>
+      <button id="btn-add-layer">+ Add</button>
+    </div>
+  </div>
+
+  <div class="nav-divider"></div>
   <div class="nav-section">History</div>
   <div id="history-strip"></div>
 </div>
@@ -246,13 +295,11 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <div id="ai-bar">
     <div id="ai-suggestions">
       <span class="ai-chip" data-prompt="dark magic blue blur abstract background vignette art">✦ Magic Blue</span>
-      <span class="ai-chip" data-prompt="dark fintech dashboard premium indigo purple mesh gradient">💼 Fintech</span>
-      <span class="ai-chip" data-prompt="vibrant mobile mesh gradient purple pink abstract">📱 Mobile</span>
-      <span class="ai-chip" data-prompt="cosmic dark purple nebula space glow abstract">🌌 Cosmic</span>
-      <span class="ai-chip" data-prompt="aurora green teal northern lights dark glow">🌌 Aurora</span>
-      <span class="ai-chip" data-prompt="neon cyan electric dark cyberpunk glow abstract">⚡ Neon</span>
-      <span class="ai-chip" data-prompt="minimal saas landing clean blue gradient subtle">🚀 SaaS</span>
-      <span class="ai-chip" data-prompt="warm gold luxury dark spotlight hero elegant">✨ Luxury</span>
+      <span class="ai-chip" data-prompt="dark fintech dashboard premium indigo purple gradient">💼 Fintech</span>
+      <span class="ai-chip" data-prompt="minimal saas hero landing clean indigo gradient subtle dark">🚀 SaaS</span>
+      <span class="ai-chip" data-prompt="aurora northern lights dark teal purple cosmic">🌌 Aurora</span>
+      <span class="ai-chip" data-prompt="warm sunset coral orange pink gradient soft blur">🌅 Sunset</span>
+      <span class="ai-chip" data-prompt="tech dark circuit neon glow cyber futuristic grid">⚡ Tech</span>
     </div>
     <div id="ai-input-row">
       <div id="ai-prompt-wrap">
@@ -323,6 +370,13 @@ const S = {
     fluid: { colorA:'#6366f1', colorB:'#ec4899', colorC:'#06b6d4', bg:'#050510', viscosity:.6, scale:4, turbulence:.8, opacity:1, seed:0 },
   },
 }
+
+// ── LAYER SYSTEM STATE ──────────────────────────────────────
+S.layers        = []    // [{id,type,name,params,visible,opacity,blendMode}]
+S.activeLayerId = null
+S.nextLayerId   = 1
+S.layerMode     = false
+S._editingLayerId = null
 
 const canvas = document.getElementById('main-canvas')
 const ctx    = canvas.getContext('2d')
@@ -1933,6 +1987,171 @@ function genComposite(c, w, h, layers) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// LAYER SYSTEM
+// ═══════════════════════════════════════════════════════════
+function _genIcons(){ return {gradient:'🌈',geometric:'⬡',noise:'☁',flowfield:'〜',material:'◈',topographic:'⊕',neural:'◈',auroragen:'✦',particles:'·',isometric:'⬡',holographic:'◇',circuit:'⊞',fluid:'〜'} }
+function _genNames(){ return {gradient:'Gradient',geometric:'Geometric',noise:'Noise',flowfield:'Flow Field',material:'Material',topographic:'Topographic',neural:'Neural Mesh',auroragen:'Aurora',particles:'Particles',isometric:'Isometric',holographic:'Holographic',circuit:'Circuit',fluid:'Fluid'} }
+
+function addLayer(type){
+  const id = S.nextLayerId++
+  const layer = {
+    id, type,
+    name: (_genNames()[type]||type)+' '+id,
+    params: JSON.parse(JSON.stringify(S.params[type]||{})),
+    visible:true, opacity:1, blendMode:'normal',
+  }
+  S.layers.push(layer)
+  S.activeLayerId = id
+  S.layerMode = true
+  renderLayerPanel(); selectLayerForEdit(id); render(true)
+}
+
+function removeLayer(id){
+  S.layers = S.layers.filter(l=>l.id!==id)
+  if(S.activeLayerId===id) S.activeLayerId = S.layers.length ? S.layers[S.layers.length-1].id : null
+  if(!S.layers.length){ S.layerMode=false; selectGen(S.gen) }
+  if(S.activeLayerId) selectLayerForEdit(S.activeLayerId)
+  renderLayerPanel(); render(true)
+}
+
+function toggleLayerVisible(id){
+  const l=S.layers.find(l=>l.id===id); if(!l) return
+  l.visible=!l.visible; renderLayerPanel(); render(true)
+}
+
+function moveLayer(id,dir){
+  const idx=S.layers.findIndex(l=>l.id===id); if(idx<0) return
+  const ni=idx+dir; if(ni<0||ni>=S.layers.length) return
+  ;[S.layers[idx],S.layers[ni]]=[S.layers[ni],S.layers[idx]]
+  renderLayerPanel(); render(true)
+}
+
+function selectLayerForEdit(id){
+  S.activeLayerId=id
+  const layer=S.layers.find(l=>l.id===id); if(!layer) return
+  S.gen=layer.type
+  S._editingLayerId=id
+  document.getElementById('rp-title').textContent=layer.name
+  const tmp=S.params[layer.type]
+  S.params[layer.type]=layer.params
+  buildControls()
+  S.params[layer.type]=tmp
+  renderLayerPanel()
+}
+
+function renderLayerPanel(){
+  const list=document.getElementById('layer-list')
+  const toggleBtn=document.getElementById('btn-toggle-layers')
+  const addRow=document.getElementById('layer-add-row')
+  const badge=document.getElementById('layer-count-badge')
+  if(!list) return
+  if(S.layerMode){
+    toggleBtn.textContent='✕ Disable'
+    toggleBtn.style.background='#ef444420'
+    toggleBtn.style.color='#ef4444'
+    toggleBtn.style.border='1px solid #ef444430'
+    addRow.style.display='flex'
+    badge.style.display='inline-flex'
+    badge.textContent=S.layers.length
+  } else {
+    toggleBtn.textContent='⊞ Enable'
+    toggleBtn.style.background=''
+    toggleBtn.style.color=''
+    toggleBtn.style.border=''
+    addRow.style.display='none'
+    badge.style.display='none'
+  }
+  list.innerHTML=''
+  ;[...S.layers].reverse().forEach(layer=>{
+    const item=document.createElement('div')
+    item.className='layer-item'+(layer.id===S.activeLayerId?' active':'')+(layer.visible?'':' hidden-layer')
+    // thumbnail
+    const tc=document.createElement('canvas'); tc.width=56; tc.height=36
+    const tctx=tc.getContext('2d')
+    try{
+      const tp=layer.params
+      switch(layer.type){
+        case 'gradient':   genGradient(tctx,56,36,tp); break
+        case 'geometric':  genGeometric(tctx,56,36,tp); break
+        case 'noise':      genNoise(tctx,56,36,tp); break
+        case 'flowfield':  genFlowField(tctx,56,36,tp); break
+        case 'material':   genMaterial(tctx,56,36,tp); break
+        case 'topographic':genTopographic(tctx,56,36,tp); break
+        case 'neural':     genNeural(tctx,56,36,tp); break
+        case 'auroragen':  genAuroraBg(tctx,56,36,tp); break
+        case 'particles':  genParticles(tctx,56,36,tp); break
+        case 'isometric':  genIsometric(tctx,56,36,tp); break
+        case 'holographic':genHolographic(tctx,56,36,tp); break
+        case 'circuit':    genCircuit(tctx,56,36,tp); break
+        case 'fluid':      genFluid(tctx,56,36,tp); break
+        default: tctx.fillStyle='#333'; tctx.fillRect(0,0,56,36)
+      }
+    }catch(e){tctx.fillStyle='#333';tctx.fillRect(0,0,56,36)}
+    item.innerHTML=`
+      <span class="layer-eye" data-lid="${layer.id}">${layer.visible?'👁':'○'}</span>
+      <div class="layer-thumb"><canvas width="28" height="18" style="width:28px;height:18px"></canvas></div>
+      <span class="layer-name">${_genIcons()[layer.type]||''} ${layer.name}</span>
+      <div class="layer-ops">
+        <button class="layer-ops-up" data-lid="${layer.id}" title="Move up">↑</button>
+        <button class="layer-ops-dn" data-lid="${layer.id}" title="Move down">↓</button>
+        <button class="layer-ops-del" data-lid="${layer.id}" title="Remove">✕</button>
+      </div>`
+    // copy thumbnail
+    const thumbCanvas=item.querySelector('canvas')
+    thumbCanvas.getContext('2d').drawImage(tc,0,0,28,18)
+    // events
+    item.querySelector('.layer-eye').addEventListener('click',e=>{e.stopPropagation();toggleLayerVisible(layer.id)})
+    item.querySelector('.layer-ops-up').addEventListener('click',e=>{e.stopPropagation();moveLayer(layer.id,-1)})
+    item.querySelector('.layer-ops-dn').addEventListener('click',e=>{e.stopPropagation();moveLayer(layer.id,1)})
+    item.querySelector('.layer-ops-del').addEventListener('click',e=>{e.stopPropagation();removeLayer(layer.id)})
+    item.addEventListener('click',()=>selectLayerForEdit(layer.id))
+    list.appendChild(item)
+  })
+}
+
+function renderLayerStack(){
+  const canvas=document.getElementById('main-canvas')
+  const ctx=canvas.getContext('2d')
+  ctx.clearRect(0,0,S.w,S.h)
+  ctx.fillStyle='#000'; ctx.fillRect(0,0,S.w,S.h)
+  for(const layer of S.layers){
+    if(!layer.visible) continue
+    const tmp=document.createElement('canvas'); tmp.width=S.w; tmp.height=S.h
+    const tc=tmp.getContext('2d')
+    const p=layer.params
+    try{
+      switch(layer.type){
+        case 'gradient':   genGradient(tc,S.w,S.h,p); break
+        case 'geometric':  genGeometric(tc,S.w,S.h,p); break
+        case 'noise':      genNoise(tc,S.w,S.h,p); break
+        case 'flowfield':  genFlowField(tc,S.w,S.h,p); break
+        case 'material':   genMaterial(tc,S.w,S.h,p); break
+        case 'topographic':genTopographic(tc,S.w,S.h,p); break
+        case 'neural':     genNeural(tc,S.w,S.h,p); break
+        case 'auroragen':  genAuroraBg(tc,S.w,S.h,p); break
+        case 'particles':  genParticles(tc,S.w,S.h,p); break
+        case 'isometric':  genIsometric(tc,S.w,S.h,p); break
+        case 'holographic':genHolographic(tc,S.w,S.h,p); break
+        case 'circuit':    genCircuit(tc,S.w,S.h,p); break
+        case 'fluid':      genFluid(tc,S.w,S.h,p); break
+      }
+    }catch(e){}
+    ctx.save()
+    ctx.globalAlpha=layer.opacity??1
+    ctx.globalCompositeOperation=layer.blendMode||'normal'
+    ctx.drawImage(tmp,0,0)
+    ctx.restore()
+  }
+}
+
+function toggleLayerMode(){
+  S.layerMode=!S.layerMode
+  if(S.layerMode && !S.layers.length){ addLayer(S.gen); return }
+  if(!S.layerMode){ S._editingLayerId=null; selectGen(S.gen) }
+  renderLayerPanel(); render(true)
+}
+
+// ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 let _renderTimer = null
@@ -1943,6 +2162,15 @@ function render(force=false){
 }
 
 function _doRender(){
+  // ── LAYER MODE ─────────────────────────────────────────────
+  if(S.layerMode && S.layers.length){
+    canvas.width=S.w; canvas.height=S.h
+    renderLayerStack()
+    updateA11y(); updateCSSOutput(); fitCanvas(); _pushHistory()
+    renderLayerPanel()
+    return
+  }
+
   const {w,h} = S
   canvas.width=w; canvas.height=h
   ctx.clearRect(0,0,w,h)
@@ -2298,6 +2526,17 @@ function _renderRefPanel(palette, styleTag, brightness){
 // ═══════════════════════════════════════════════════════════
 function buildControls(){
   const area = document.getElementById('controls-area')
+  if(S._editingLayerId && !['presets','reference'].includes(S.gen)){
+    const layer = S.layers.find(l=>l.id===S._editingLayerId)
+    if(layer){
+      const saved = S.params[layer.type]
+      S.params[layer.type] = layer.params
+      area.innerHTML = _buildControlsFor(layer.type)
+      S.params[layer.type] = saved
+      _bindControls()
+      return
+    }
+  }
   area.innerHTML = _buildControlsFor(S.gen)
   _bindControls()
 }
@@ -2758,6 +2997,19 @@ function _ctrlPresets(){
     {label:'Islamic Star',gen:'geometric',p:{type:'islamic',size:70,gap:1,colorA:'#c9a84c',colorB:'#1a0f08',lineW:1.5,opacity:.9,filled:false}},
     {label:'Dot Grid',gen:'geometric',p:{type:'dotgrid',size:24,gap:3,colorA:'#4a4a6a',colorB:'#0b0b10',lineW:1,opacity:.6,filled:false}},
     {label:'Radial Flow',gen:'flowfield',p:{type:'radial',count:4000,stepLen:2,lineW:.6,speed:.7,colorA:'#facc15',colorB:'#ea580c',bg:'#0a0500',opacity:.4,seed:5}},
+    {label:'Fintech Dark',gen:'gradient',p:{type:'mesh',stops:['#0f0e30','#3730a3','#1e40af','#0c0a20'],angle:155,cx:.5,cy:.5,meshScale:1.2,grain:.025,vignette:.7}},
+    {label:'SaaS Hero',gen:'gradient',p:{type:'radial',stops:['#4f46e5','#7c3aed','#0f172a'],cx:.3,cy:.25,grain:.015,vignette:.55}},
+    {label:'Minimal Dark',gen:'gradient',p:{type:'linear',stops:['#0f172a','#1e293b'],angle:160,grain:.008,vignette:.4}},
+    {label:'Startup Vibrant',gen:'gradient',p:{type:'mesh',stops:['#7c3aed','#ec4899','#06b6d4','#1a0a3e'],angle:135,cx:.4,cy:.3,meshScale:1.4,grain:.02,vignette:.5}},
+    {label:'Corporate Blue',gen:'gradient',p:{type:'linear',stops:['#1e3a5f','#0f2044','#0a1628'],angle:160,grain:.01,vignette:.6}},
+    {label:'Aurora Dashboard',gen:'auroragen',p:{bands:4,intensity:.75,wave:.12,opacity:1,seed:7,bg:'#020810',colorA:'#00d4aa',colorB:'#7c3aed',colorC:'#0891b2'}},
+    {label:'Neural Dark',gen:'neural',p:{nodeCount:120,connectivity:.35,pulseSpeed:.4,colorBg:'#050510',colorA:'#6366f1',colorB:'#8b5cf6',colorEdge:'#4338ca',opacity:1,seed:3}},
+    {label:'Circuit Teal',gen:'circuit',p:{lineColor:'#00d4aa',bgColor:'#020f0d',density:8,lineW:1,glowInt:.8,opacity:1,seed:5}},
+    {label:'Fluid Indigo',gen:'fluid',p:{viscosity:.92,colorA:'#4f46e5',colorB:'#7c3aed',colorC:'#0f172a',speed:.4,opacity:1,seed:9}},
+    {label:'Particles Blue',gen:'particles',p:{count:280,maxR:3,speed:.6,colorA:'#6366f1',colorB:'#38bdf8',bg:'#060612',connect:true,opacity:1,seed:2}},
+    {label:'Holographic Foil',gen:'holographic',p:{style:'foil',angle:135,intensity:.88,grain:.025,opacity:1,hueShift:0}},
+    {label:'Topographic Blue',gen:'topographic',p:{colorBg:'#0a1628',colorA:'#1e3a5f',colorB:'#38bdf8',levels:18,scale:4,lineW:1.2,opacity:.9,filled:true,seed:21}},
+    {label:'Isometric Indigo',gen:'isometric',p:{colorA:'#4f46e5',colorB:'#312e81',colorC:'#1e1b4b',size:48,gap:2,opacity:1,seed:4}},
   ]
 
   return `<div class="preset-grid">${presets.map((pr,i)=>`
@@ -2883,7 +3135,14 @@ function _bindControls(){
 }
 
 function _mapControl(id, val){
-  const p = S.params[S.gen]
+  let _p_target
+  if(S._editingLayerId){
+    const _el=S.layers.find(l=>l.id===S._editingLayerId)
+    _p_target=_el?_el.params:S.params[S.gen]
+  } else {
+    _p_target=S.params[S.gen]
+  }
+  const p = _p_target
   const map = {
     // gradient
     c_grad_type:'type',c_grad_angle:'angle',c_grad_cx:'cx',c_grad_cy:'cy',c_grad_grain:'grain',
@@ -3650,6 +3909,7 @@ function showTilePreview(){
 function selectGen(gen){
   // CRITICAL: clear composite so manual generator clicks always work
   if (!['presets','reference'].includes(gen)) S.composite = null
+  if(!S.layerMode || ['presets','reference'].includes(gen)) S._editingLayerId = null
 
   S.gen=gen
   document.querySelectorAll('.nav-item').forEach(el=>{
@@ -3698,9 +3958,17 @@ function applySize(val){
 document.querySelectorAll('.nav-item[data-gen]').forEach(el=>{
   el.addEventListener('click',()=>{
     const gen = el.dataset.gen
+    if(S.layerMode && !['presets','reference'].includes(gen)){
+      addLayer(gen); return
+    }
     selectGen(gen)
     if(gen!=='presets' && gen!=='reference') render(true)
   })
+})
+document.getElementById('btn-toggle-layers').addEventListener('click', toggleLayerMode)
+document.getElementById('btn-add-layer').addEventListener('click', ()=>{
+  const sel=document.getElementById('layer-type-sel')
+  addLayer(sel.value)
 })
 document.getElementById('canvas-size-sel').addEventListener('change',e=>applySize(e.target.value))
 document.getElementById('btn-export').addEventListener('click',showExportModal)
@@ -4217,6 +4485,42 @@ const AI = {
         { type:'vignette2', strength:.2 },
       ]}
     },
+    'fintech-dark'(pal, dark) {
+      return { layers: [
+        { type:'fill', color:'#060612' },
+        { type:'linearGrad', angle:155, stops:['#0f0e30', pal.mid+'cc', '#080818'], opacity:1 },
+        { type:'blobGlow', blend:'screen', opacity:.7, blobs:[
+          {x:.15,y:.2,r:.45,color:'#3730a3cc'},
+          {x:.75,y:.65,r:.38,color:'#1e3a8a99'},
+          {x:.5,y:.5,r:.3,color:'#4f46e544'},
+        ]},
+        { type:'geo2', geoType:'dotgrid', size:36, opacity:.07, colorA:'rgba(255,255,255,.15)' },
+        { type:'grain2', intensity:.03 },
+        { type:'vignette2', strength:.65 },
+      ]}
+    },
+    'saas-hero'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#0a0a1a' : '#f8f7ff' },
+        { type:'radialGrad', cx:.3, cy:.25, stops:[pal.accent+'dd','transparent'], opacity:.9 },
+        { type:'radialGrad', cx:.8, cy:.75, stops:[pal.mid+'99','transparent'], opacity:.6 },
+        { type:'blobGlow', blend:'screen', opacity:.5, blobs:[
+          {x:.25,y:.15,r:.55,color:pal.accent+'66'},
+          {x:.7,y:.7,r:.4,color:pal.mid+'44'},
+        ]},
+        { type:'grain2', intensity:.025 },
+        { type:'vignette2', strength:.4 },
+      ]}
+    },
+    'minimal-saas'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#0f172a' : '#fafafa' },
+        { type:'linearGrad', angle:145, stops:[pal.accent+'22','transparent'], opacity:1 },
+        { type:'geo2', geoType:'dotgrid', size:28, opacity:.06, colorA: dark?'rgba(255,255,255,.2)':'rgba(0,0,0,.15)' },
+        { type:'grain2', intensity:.015 },
+        { type:'vignette2', strength:.3 },
+      ]}
+    }
   },
 
   // ── STYLE SELECTOR — maps parsed intent to a STYLES key ───────
@@ -4239,6 +4543,12 @@ const AI = {
     if (text.match(/\b(flow|particle|stream|wave|curl)\b/))                  return 'flow-abstract'
 
     // Use-case based
+    if (parsed.useCase === 'fintech')   return 'fintech-dark'
+    if (parsed.useCase === 'dashboard') return 'fintech-dark'
+    if (parsed.useCase === 'saas')      return isDark ? 'saas-hero' : 'minimal-saas'
+    if (text.match(/\b(fintech|banking|finance|payment|crypto)\b/)) return 'fintech-dark'
+    if (text.match(/\b(saas|product|startup|app\s+landing)\b/))    return 'saas-hero'
+    if (text.match(/\b(minimal|clean|simple|corporate|professional)\b/)) return isDark ? 'minimal-clean' : 'minimal-saas'
     if (parsed.useCase === 'gaming')    return 'neon-glow'
     if (parsed.useCase === 'crypto')    return 'dark-gradient'
     if (parsed.useCase === 'music')     return 'blur-abstract'

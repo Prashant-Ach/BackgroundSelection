@@ -178,6 +178,26 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 
 /* tiling preview */
 #tile-preview-wrap{position:relative;overflow:hidden;border-radius:var(--r2);background:var(--s3);border:1px solid var(--border)}
+
+/* ── LAYER SYSTEM ── */
+#layer-panel{padding:0;flex-shrink:0}
+#layer-list{padding:4px 6px;display:flex;flex-direction:column;gap:2px;max-height:220px;overflow-y:auto}
+.layer-item{display:flex;align-items:center;gap:6px;padding:5px 8px;border-radius:6px;cursor:pointer;border:1px solid transparent;transition:all.12s;user-select:none}
+.layer-item:hover{background:var(--s3)}
+.layer-item.active{background:#6366f118;border-color:var(--accent)}
+.layer-item .layer-eye{font-size:13px;cursor:pointer;opacity:.7;flex-shrink:0;transition:opacity.15s;width:16px;text-align:center}
+.layer-item.hidden-layer{opacity:.45}
+.layer-item .layer-thumb{width:28px;height:18px;border-radius:3px;flex-shrink:0;border:1px solid #fff1;overflow:hidden}
+.layer-item .layer-name{flex:1;font-size:11.5px;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.layer-item .layer-ops{display:flex;gap:2px;margin-left:auto;flex-shrink:0}
+.layer-item .layer-ops button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:3px;transition:all.12s;line-height:1}
+.layer-item .layer-ops button:hover{color:var(--text);background:var(--s3)}
+.layer-ops-del:hover{color:var(--red)!important}
+#layer-add-row{display:flex;gap:4px;padding:6px 8px 8px}
+#layer-add-row select{flex:1;font-size:11px;padding:4px 6px;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none}
+#layer-add-row button{background:var(--accent);border:none;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
+.layer-mode-badge{display:inline-flex;align-items:center;gap:4px;padding:2px 8px;border-radius:10px;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.07em;background:#6366f120;color:var(--accent);border:1px solid #6366f130;margin-left:4px}
+.blend-select{font-size:10.5px!important;padding:2px 4px!important;width:auto!important;border-radius:4px!important}
 </style>
 </head>
 <body>
@@ -230,6 +250,35 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <div class="nav-item" data-gen="reference"><span class="icon">🖼</span>Reference Image</div>
   <div class="nav-item" data-gen="presets"><span class="icon">★</span>Presets</div>
   <div class="nav-divider"></div>
+
+  <!-- ── LAYER SYSTEM ── -->
+  <div id="layer-panel">
+    <div class="nav-section" style="display:flex;align-items:center;justify-content:space-between;padding-right:8px">
+      <span>Layers <span class="layer-mode-badge" id="layer-count-badge" style="display:none">0</span></span>
+      <button class="btn sm" id="btn-toggle-layers" title="Enable layer compositing">⊞ Enable</button>
+    </div>
+    <div id="layer-list"></div>
+    <div id="layer-add-row" style="display:none">
+      <select id="layer-type-sel">
+        <option value="gradient">Gradient</option>
+        <option value="geometric">Geometric</option>
+        <option value="noise">Noise</option>
+        <option value="flowfield">Flow Field</option>
+        <option value="material">Material</option>
+        <option value="auroragen">Aurora</option>
+        <option value="fluid">Fluid</option>
+        <option value="particles">Particles</option>
+        <option value="neural">Neural Mesh</option>
+        <option value="holographic">Holographic</option>
+        <option value="isometric">Isometric</option>
+        <option value="circuit">Circuit</option>
+        <option value="topographic">Topographic</option>
+      </select>
+      <button id="btn-add-layer">+ Add</button>
+    </div>
+  </div>
+
+  <div class="nav-divider"></div>
   <div class="nav-section">History</div>
   <div id="history-strip"></div>
 </div>
@@ -245,12 +294,12 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
   <div id="ai-bar">
     <div id="ai-suggestions">
       <span class="ai-chip" data-prompt="dark magic blue blur abstract background vignette art">✦ Magic Blue</span>
-      <span class="ai-chip" data-prompt="dark fintech dashboard premium indigo purple mesh gradient">💼 Fintech</span>
-      <span class="ai-chip" data-prompt="vibrant mobile mesh gradient purple pink abstract">📱 Mobile</span>
+      <span class="ai-chip" data-prompt="dark fintech dashboard premium indigo purple gradient">💼 Fintech</span>
+      <span class="ai-chip" data-prompt="minimal saas hero landing clean indigo gradient subtle dark">🚀 SaaS</span>
       <span class="ai-chip" data-prompt="cosmic dark purple nebula space glow abstract">🌌 Cosmic</span>
       <span class="ai-chip" data-prompt="aurora green teal northern lights dark glow">🌌 Aurora</span>
       <span class="ai-chip" data-prompt="neon cyan electric dark cyberpunk glow abstract">⚡ Neon</span>
-      <span class="ai-chip" data-prompt="minimal saas landing clean blue gradient subtle">🚀 SaaS</span>
+      <span class="ai-chip" data-prompt="vibrant mobile mesh gradient purple pink abstract">📱 Mobile</span>
       <span class="ai-chip" data-prompt="warm gold luxury dark spotlight hero elegant">✨ Luxury</span>
     </div>
     <div id="ai-input-row">
@@ -322,6 +371,12 @@ const S = {
     fluid: { colorA:'#6366f1', colorB:'#ec4899', colorC:'#06b6d4', bg:'#050510', viscosity:.6, scale:4, turbulence:.8, opacity:1, seed:0 },
   },
 }
+
+// Layer System State
+S.layers = []         // array of { id, type, name, params, visible, opacity, blendMode }
+S.activeLayerId = null
+S.nextLayerId   = 1
+S.layerMode     = false  // when true, composites layers instead of single-gen
 
 const canvas = document.getElementById('main-canvas')
 const ctx    = canvas.getContext('2d')
@@ -1510,6 +1565,207 @@ function genComposite(c, w, h, layers) {
 }
 
 // ═══════════════════════════════════════════════════════════
+// LAYER SYSTEM
+// ═══════════════════════════════════════════════════════════
+
+function _genIcons(){ return {gradient:'🌈',geometric:'⬡',noise:'☁',flowfield:'〜',material:'◈',topographic:'⊕',neural:'◈',auroragen:'✦',particles:'·',isometric:'⬡',holographic:'◇',circuit:'⊞',fluid:'〜'} }
+function _genNames(){ return {gradient:'Gradient',geometric:'Geometric',noise:'Noise',flowfield:'Flow Field',material:'Material',topographic:'Topographic',neural:'Neural Mesh',auroragen:'Aurora',particles:'Particles',isometric:'Isometric',holographic:'Holographic',circuit:'Circuit',fluid:'Fluid'} }
+
+function addLayer(type){
+  const id = S.nextLayerId++
+  const layer = {
+    id, type,
+    name: (_genNames()[type] || type) + ' ' + id,
+    params: JSON.parse(JSON.stringify(S.params[type] || {})),
+    visible: true,
+    opacity: 1,
+    blendMode: 'normal',
+  }
+  S.layers.push(layer)
+  S.activeLayerId = id
+  S.layerMode = true
+  renderLayerPanel()
+  selectLayerForEdit(id)
+  render(true)
+}
+
+function removeLayer(id){
+  S.layers = S.layers.filter(l=>l.id!==id)
+  if(S.activeLayerId===id) S.activeLayerId = S.layers.length ? S.layers[S.layers.length-1].id : null
+  if(!S.layers.length){ S.layerMode = false; selectGen(S.gen) }
+  renderLayerPanel()
+  render(true)
+}
+
+function toggleLayerVisible(id){
+  const l=S.layers.find(l=>l.id===id)
+  if(l){ l.visible=!l.visible; renderLayerPanel(); render(true) }
+}
+
+function moveLayer(id, dir){
+  const idx = S.layers.findIndex(l=>l.id===id)
+  if(idx<0) return
+  const to = idx + dir
+  if(to<0||to>=S.layers.length) return
+  const tmp=S.layers[idx]; S.layers[idx]=S.layers[to]; S.layers[to]=tmp
+  renderLayerPanel(); render(true)
+}
+
+function selectLayerForEdit(id){
+  S.activeLayerId = id
+  const layer = S.layers.find(l=>l.id===id)
+  if(!layer) return
+  // Override S.gen and S.params for control binding
+  S.gen = layer.type
+  S._editingLayerId = id
+  document.getElementById('rp-title').textContent = layer.name
+  // Build controls but sync to layer.params
+  const tmp = S.params[layer.type]
+  S.params[layer.type] = layer.params
+  buildControls()
+  S.params[layer.type] = tmp  // restore global
+  // Patch _mapControl to write to layer.params
+  renderLayerPanel()
+}
+
+function renderLayerPanel(){
+  const list = document.getElementById('layer-list')
+  const badge = document.getElementById('layer-count-badge')
+  const addRow = document.getElementById('layer-add-row')
+  const toggleBtn = document.getElementById('btn-toggle-layers')
+
+  if(S.layerMode){
+    badge.style.display = S.layers.length ? '' : 'none'
+    badge.textContent = S.layers.length
+    addRow.style.display = 'flex'
+    toggleBtn.textContent = '✕ Disable'
+    toggleBtn.style.background = '#ef444420'
+    toggleBtn.style.borderColor = '#ef444440'
+    toggleBtn.style.color = '#ef4444'
+  } else {
+    badge.style.display = 'none'
+    addRow.style.display = 'none'
+    toggleBtn.textContent = '⊞ Enable'
+    toggleBtn.style.background = ''
+    toggleBtn.style.borderColor = ''
+    toggleBtn.style.color = ''
+  }
+
+  if(!S.layers.length){
+    list.innerHTML = S.layerMode
+      ? '<div style="padding:8px 12px;font-size:11px;color:var(--muted);font-style:italic">No layers yet — add one above</div>'
+      : ''
+    return
+  }
+
+  const icons = _genIcons()
+  list.innerHTML = [...S.layers].reverse().map((layer,ri)=>{
+    const isActive = layer.id === S.activeLayerId
+    return `<div class="layer-item${isActive?' active':''}${!layer.visible?' hidden-layer':''}" data-lid="${layer.id}">
+      <span class="layer-eye" data-eye="${layer.id}" title="Toggle visibility">${layer.visible?'👁':'○'}</span>
+      <canvas class="layer-thumb" id="lthumb_${layer.id}" width="28" height="18"></canvas>
+      <span class="layer-name" title="${layer.name}">${icons[layer.type]||'◈'} ${layer.name}</span>
+      <div class="layer-ops">
+        <button title="Move up" data-up="${layer.id}">↑</button>
+        <button title="Move down" data-dn="${layer.id}">↓</button>
+        <button class="layer-ops-del" title="Delete layer" data-del="${layer.id}">✕</button>
+      </div>
+    </div>`
+  }).join('')
+
+  // Bind events
+  list.querySelectorAll('.layer-item').forEach(el=>{
+    const id = +el.dataset.lid
+    el.addEventListener('click', e=>{
+      if(e.target.dataset.eye||e.target.dataset.up||e.target.dataset.dn||e.target.dataset.del) return
+      selectLayerForEdit(id)
+    })
+  })
+  list.querySelectorAll('[data-eye]').forEach(el=>el.addEventListener('click',()=>toggleLayerVisible(+el.dataset.eye)))
+  list.querySelectorAll('[data-up]').forEach(el=>el.addEventListener('click',()=>moveLayer(+el.dataset.up,-1)))
+  list.querySelectorAll('[data-dn]').forEach(el=>el.addEventListener('click',()=>moveLayer(+el.dataset.dn,+1)))
+  list.querySelectorAll('[data-del]').forEach(el=>el.addEventListener('click',()=>removeLayer(+el.dataset.del)))
+
+  // Draw layer thumbnails in background
+  requestAnimationFrame(()=>{
+    S.layers.forEach(layer=>{
+      const tc = document.getElementById('lthumb_'+layer.id)
+      if(!tc) return
+      const c = tc.getContext('2d')
+      const TW=28, TH=18
+      try {
+        const p = layer.params
+        switch(layer.type){
+          case 'gradient':    genGradient(c,TW,TH,p); break
+          case 'geometric':   genGeometric(c,TW,TH,p); break
+          case 'noise':       genNoise(c,TW,TH,p); break
+          case 'flowfield':   genFlowField(c,TW,TH,p); break
+          case 'material':    genMaterial(c,TW,TH,p); break
+          case 'topographic': genTopographic(c,TW,TH,p); break
+          case 'neural':      genNeural(c,TW,TH,p); break
+          case 'auroragen':   genAuroraBg(c,TW,TH,p); break
+          case 'particles':   genParticles(c,TW,TH,p); break
+          case 'isometric':   genIsometric(c,TW,TH,p); break
+          case 'holographic': genHolographic(c,TW,TH,p); break
+          case 'circuit':     genCircuit(c,TW,TH,p); break
+          case 'fluid':       genFluid(c,TW,TH,p); break
+        }
+      } catch(e){ c.fillStyle='#333'; c.fillRect(0,0,TW,TH) }
+    })
+  })
+}
+
+function renderLayerStack(){
+  ctx.clearRect(0, 0, S.w, S.h)
+  // Black base
+  ctx.fillStyle = '#000'; ctx.fillRect(0,0,S.w,S.h)
+  for(const layer of S.layers){
+    if(!layer.visible) continue
+    const tmp = document.createElement('canvas')
+    tmp.width=S.w; tmp.height=S.h
+    const tc = tmp.getContext('2d')
+    const p = layer.params
+    try {
+      switch(layer.type){
+        case 'gradient':    genGradient(tc,S.w,S.h,p); break
+        case 'geometric':   genGeometric(tc,S.w,S.h,p); break
+        case 'noise':       genNoise(tc,S.w,S.h,p); break
+        case 'flowfield':   genFlowField(tc,S.w,S.h,p); break
+        case 'material':    genMaterial(tc,S.w,S.h,p); break
+        case 'topographic': genTopographic(tc,S.w,S.h,p); break
+        case 'neural':      genNeural(tc,S.w,S.h,p); break
+        case 'auroragen':   genAuroraBg(tc,S.w,S.h,p); break
+        case 'particles':   genParticles(tc,S.w,S.h,p); break
+        case 'isometric':   genIsometric(tc,S.w,S.h,p); break
+        case 'holographic': genHolographic(tc,S.w,S.h,p); break
+        case 'circuit':     genCircuit(tc,S.w,S.h,p); break
+        case 'fluid':       genFluid(tc,S.w,S.h,p); break
+      }
+    } catch(e){}
+    ctx.save()
+    ctx.globalAlpha = layer.opacity
+    ctx.globalCompositeOperation = layer.blendMode || 'normal'
+    ctx.drawImage(tmp,0,0)
+    ctx.restore()
+  }
+}
+
+function toggleLayerMode(){
+  S.layerMode = !S.layerMode
+  if(S.layerMode && !S.layers.length){
+    // Seed with current generator as first layer
+    addLayer(S.gen)
+    return
+  }
+  if(!S.layerMode){
+    S._editingLayerId = null
+    selectGen(S.gen)
+  }
+  renderLayerPanel()
+  render(true)
+}
+
+// ═══════════════════════════════════════════════════════════
 // RENDER
 // ═══════════════════════════════════════════════════════════
 let _renderTimer = null
@@ -1523,6 +1779,14 @@ function _doRender(){
   const {w,h} = S
   canvas.width=w; canvas.height=h
   ctx.clearRect(0,0,w,h)
+
+  // ── LAYER MODE ─────────────────────────────────────────────
+  if(S.layerMode && S.layers.length){
+    renderLayerStack()
+    updateA11y(); updateCSSOutput(); fitCanvas(); _pushHistory()
+    renderLayerPanel()
+    return
+  }
 
   // ── COMPOSITE MODE (AI-generated) ─────────────────────────
   if (S.composite && S.composite.layers) {
@@ -1684,7 +1948,7 @@ function showVariations(){
       case 'noise':       genNoise(vctx,360,200,vp); break
       case 'flowfield':   genFlowField(vctx,360,200,vp); break
       case 'material':    genMaterial(vctx,360,200,vp); break
-      case 'topographic': genTopographic(vctx,360,200,vp); break
+      case 'topographic': try{genTopographic(vctx,360,200,vp)}catch(e){}; break
       case 'neural':      genNeural(vctx,360,200,vp); break
       case 'auroragen':   genAuroraBg(vctx,360,200,vp); break
       case 'particles':   genParticles(vctx,360,200,vp); break
@@ -1705,10 +1969,11 @@ function showVariations(){
 
 function _randomVariation(){
   const p = JSON.parse(JSON.stringify(S.params[S.gen]))
-  // mutate numeric params randomly
+  const LIMITS = {angle:360,count:5000,octaves:8,size:200,nodeCount:300,levels:30,density:15,bands:8}
   Object.keys(p).forEach(k=>{
     if(typeof p[k]==='number' && k!=='seed'){
-      p[k] = clamp(p[k]*(0.6+Math.random()*.8), 0, k==='angle'?360:k==='count'?5000:k==='octaves'?8:k==='size'?200:1)
+      const hi = LIMITS[k] || 1
+      p[k] = clamp(p[k]*(0.55+Math.random()*.9), hi==='1'?0:0, hi)
     } else if(typeof p[k]==='string' && p[k].startsWith('#')){
       p[k] = _randColor()
     }
@@ -1875,6 +2140,19 @@ function _renderRefPanel(palette, styleTag, brightness){
 // ═══════════════════════════════════════════════════════════
 function buildControls(){
   const area = document.getElementById('controls-area')
+  // If editing a layer, temporarily swap its params in so controls read correctly
+  // But not when user navigates to presets/reference — those are tool panels
+  if(S._editingLayerId && !['presets','reference'].includes(S.gen)){
+    const layer = S.layers.find(l=>l.id===S._editingLayerId)
+    if(layer){
+      const saved = S.params[layer.type]
+      S.params[layer.type] = layer.params
+      area.innerHTML = _buildControlsFor(layer.type)
+      S.params[layer.type] = saved
+      _bindControls()
+      return
+    }
+  }
   area.innerHTML = _buildControlsFor(S.gen)
   _bindControls()
 }
@@ -2145,6 +2423,20 @@ function _ctrlPresets(){
     {label:'Islamic Star',gen:'geometric',p:{type:'islamic',size:70,gap:1,colorA:'#c9a84c',colorB:'#1a0f08',lineW:1.5,opacity:.9,filled:false}},
     {label:'Dot Grid',gen:'geometric',p:{type:'dotgrid',size:24,gap:3,colorA:'#4a4a6a',colorB:'#0b0b10',lineW:1,opacity:.6,filled:false}},
     {label:'Radial Flow',gen:'flowfield',p:{type:'radial',count:4000,stepLen:2,lineW:.6,speed:.7,colorA:'#facc15',colorB:'#ea580c',bg:'#0a0500',opacity:.4,seed:5}},
+    // ── Fintech / Dashboard ───────────────────────────────────────
+    {label:'Fintech Dark',gen:'gradient',p:{type:'mesh',stops:['#0f0e30','#3730a3','#1e40af','#0c0a20'],angle:135,cx:.5,cy:.5}},
+    {label:'SaaS Hero',gen:'gradient',p:{type:'radial',stops:['#4f46e5','#7c3aed','#0f172a'],angle:135,cx:.3,cy:.25}},
+    {label:'Minimal Dark',gen:'gradient',p:{type:'linear',stops:['#0f172a','#1e293b'],angle:160}},
+    {label:'Startup Vibrant',gen:'gradient',p:{type:'mesh',stops:['#7c3aed','#ec4899','#06b6d4','#1a0a3e'],angle:135,cx:.5,cy:.5}},
+    {label:'Corporate Blue',gen:'gradient',p:{type:'linear',stops:['#1e3a5f','#0c1a2e','#1e3a5f'],angle:135}},
+    {label:'Aurora Dashboard',gen:'auroragen',p:{colorA:'#00c6a7',colorB:'#6366f1',colorC:'#06b6d4',bg:'#030b18',intensity:.65,waveAmp:.09,bands:3,opacity:1,seed:44}},
+    {label:'Neural Dark',gen:'neural',p:{nodeCount:120,nodeSize:2.5,connectRadius:.18,edgeOpacity:.3,nodeColor:'#6366f1',edgeColor:'#06b6d4',bg:'#050510',opacity:.85,seed:11}},
+    {label:'Circuit Teal',gen:'circuit',p:{traceColor:'#2dd4bf',bg:'#030e0d',lineW:1.2,density:6,glowColor:'#00ffcc',glowIntensity:.55,seed:77,opacity:.85}},
+    {label:'Fluid Indigo',gen:'fluid',p:{colorA:'#4f46e5',colorB:'#7c3aed',colorC:'#0ea5e9',bg:'#050510',viscosity:.65,scale:4,turbulence:.75,opacity:1,seed:33}},
+    {label:'Particles Blue',gen:'particles',p:{count:1200,minSize:.5,maxSize:2.5,colorA:'#6366f1',colorB:'#06b6d4',bg:'#030b18',glow:2.5,opacity:.8,seed:55}},
+    {label:'Holographic Foil',gen:'holographic',p:{style:'foil',angle:135,intensity:.88,grain:.025,opacity:1}},
+    {label:'Topographic Blue',gen:'topographic',p:{colorBg:'#0a1628',colorA:'#1e3a5f',colorB:'#38bdf8',levels:18,scale:4,lineW:1.2,opacity:.9,filled:true,seed:21}},
+    {label:'Isometric Indigo',gen:'isometric',p:{size:48,colorTop:'#6366f1',colorLeft:'#312e81',colorRight:'#1e1b4b',bg:'#080820',depth:.75,opacity:1,filled:true}},
   ]
 
   return `<div class="preset-grid">${presets.map((pr,i)=>`
@@ -2160,11 +2452,19 @@ function _ctrlPresets(){
           const vc=document.getElementById('pthumb_'+i);if(!vc)return
           const vc2=vc.getContext('2d');
           switch(pr.gen){
-            case 'gradient': genGradient(vc2,200,112,pr.p); break
-            case 'geometric': genGeometric(vc2,200,112,pr.p); break
-            case 'noise': genNoise(vc2,200,112,pr.p); break
-            case 'flowfield': genFlowField(vc2,200,112,pr.p); break
-            case 'material': genMaterial(vc2,200,112,pr.p); break
+            case 'gradient':    genGradient(vc2,200,112,pr.p); break
+            case 'geometric':   genGeometric(vc2,200,112,pr.p); break
+            case 'noise':       genNoise(vc2,200,112,pr.p); break
+            case 'flowfield':   genFlowField(vc2,200,112,pr.p); break
+            case 'material':    genMaterial(vc2,200,112,pr.p); break
+            case 'topographic': genTopographic(vc2,200,112,pr.p); break
+            case 'neural':      genNeural(vc2,200,112,pr.p); break
+            case 'auroragen':   genAuroraBg(vc2,200,112,pr.p); break
+            case 'particles':   genParticles(vc2,200,112,pr.p); break
+            case 'isometric':   genIsometric(vc2,200,112,pr.p); break
+            case 'holographic': genHolographic(vc2,200,112,pr.p); break
+            case 'circuit':     genCircuit(vc2,200,112,pr.p); break
+            case 'fluid':       genFluid(vc2,200,112,pr.p); break
           }
           vc.parentElement.addEventListener('click',()=>{
             S.gen=pr.gen; S.params[pr.gen]=Object.assign({},pr.p);
@@ -2265,7 +2565,14 @@ function _bindControls(){
 }
 
 function _mapControl(id, val){
-  const p = S.params[S.gen]
+  // When editing a layer, write to layer.params not S.params[gen]
+  let p
+  if(S._editingLayerId){
+    const layer = S.layers.find(l=>l.id===S._editingLayerId)
+    p = layer ? layer.params : S.params[S.gen]
+  } else {
+    p = S.params[S.gen]
+  }
   const map = {
     // gradient
     c_grad_type:'type',c_grad_angle:'angle',c_grad_cx:'cx',c_grad_cy:'cy',
@@ -2792,6 +3099,9 @@ function showTilePreview(){
 function selectGen(gen){
   // CRITICAL: clear composite so manual generator clicks always work
   if (!['presets','reference'].includes(gen)) S.composite = null
+  // Clear layer editing when user clicks a generator directly (not in layer mode)
+  // Also clear it for tool panels (presets/reference) regardless of layer mode
+  if(!S.layerMode || ['presets','reference'].includes(gen)) S._editingLayerId = null
 
   S.gen=gen
   document.querySelectorAll('.nav-item').forEach(el=>{
@@ -2840,9 +3150,20 @@ function applySize(val){
 document.querySelectorAll('.nav-item[data-gen]').forEach(el=>{
   el.addEventListener('click',()=>{
     const gen = el.dataset.gen
+    if(S.layerMode && !['presets','reference'].includes(gen)){
+      // In layer mode, clicking a generator adds it as a new layer
+      addLayer(gen)
+      return
+    }
     selectGen(gen)
     if(gen!=='presets' && gen!=='reference') render(true)
   })
+})
+
+document.getElementById('btn-toggle-layers').addEventListener('click', toggleLayerMode)
+document.getElementById('btn-add-layer').addEventListener('click', ()=>{
+  const sel = document.getElementById('layer-type-sel')
+  addLayer(sel.value)
 })
 document.getElementById('canvas-size-sel').addEventListener('change',e=>applySize(e.target.value))
 document.getElementById('btn-export').addEventListener('click',exportPNG)
@@ -3358,6 +3679,51 @@ const AI = {
         { type:'vignette2', strength:.2 },
       ]}
     },
+
+    'fintech-dark'(pal, dark) {
+      return { layers: [
+        { type:'fill', color:'#060612' },
+        { type:'linearGrad', angle:155,
+          stops:['#0f0e30', pal.mid+'cc', '#080818'], blend:'normal', opacity:1 },
+        { type:'blobGlow', blend:'screen', opacity:.7, blobs:[
+          {x:.2, y:.2, r:.6, color:pal.mid,   alpha:.35},
+          {x:.8, y:.7, r:.5, color:pal.accent, alpha:.28},
+        ]},
+        { type:'geo2', geoType:'dotgrid', size:36, opacity:.07,
+          colorA:'rgba(255,255,255,.15)' },
+        { type:'grain2',    intensity:.03 },
+        { type:'vignette2', strength:.65 },
+      ]}
+    },
+
+    'saas-hero'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#0a0a1a' : '#f0f4ff' },
+        { type:'radialGrad', cx:.35, cy:.2, r:.9,
+          stops:[pal.mid+'bb', pal.accent+'55', 'rgba(0,0,0,0)'],
+          blend:'normal', opacity:.9 },
+        { type:'blobGlow', blend:'screen', opacity:.55, blobs:[
+          {x:.75, y:.7, r:.55, color:pal.accent, alpha:.45},
+          {x:.5,  y:.5, r:.35, color:pal.mid,    alpha:.25},
+        ]},
+        { type:'geo2', geoType:'hex', size:70, opacity:.06,
+          colorA: dark?'rgba(255,255,255,.12)':'rgba(0,0,0,.06)' },
+        { type:'spotlight', x:.35, y:0, r:.9, color:pal.mid, alpha:.18, blend:'screen', opacity:1 },
+        { type:'grain2',    intensity:.025 },
+        { type:'vignette2', strength:.5 },
+      ]}
+    },
+
+    'minimal-saas'(pal, dark) {
+      return { layers: [
+        { type:'fill', color: dark ? '#0d1117' : '#fafafa' },
+        { type:'linearGrad', angle:135,
+          stops:[pal.mid+'25', pal.accent+'15', 'rgba(0,0,0,0)'],
+          blend:'normal', opacity:1 },
+        { type:'grain2',    intensity:.018 },
+        { type:'vignette2', strength:.22 },
+      ]}
+    },
   },
 
   // ── STYLE SELECTOR — maps parsed intent to a STYLES key ───────
@@ -3381,9 +3747,16 @@ const AI = {
 
     // Use-case based
     if (parsed.useCase === 'gaming')    return 'neon-glow'
-    if (parsed.useCase === 'crypto')    return 'dark-gradient'
+    if (parsed.useCase === 'crypto')    return 'fintech-dark'
     if (parsed.useCase === 'music')     return 'blur-abstract'
     if (parsed.useCase === 'portfolio') return 'spotlight-hero'
+    if (parsed.useCase === 'fintech')   return 'fintech-dark'
+    if (parsed.useCase === 'dashboard') return 'fintech-dark'
+    if (parsed.useCase === 'saas')      return isDark ? 'saas-hero' : 'minimal-saas'
+    if (parsed.useCase === 'ai')        return 'saas-hero'
+    if (text.match(/\b(fintech|banking|finance|payment|crypto)\b/)) return 'fintech-dark'
+    if (text.match(/\b(saas|product|startup|app\s+landing)\b/))    return 'saas-hero'
+    if (text.match(/\b(minimal|clean|simple|corporate|professional)\b/)) return isDark ? 'minimal-clean' : 'minimal-saas'
 
     // Mood based
     if (moods.includes('vibrant') || moods.includes('playful')) return 'mesh-vibrant'
