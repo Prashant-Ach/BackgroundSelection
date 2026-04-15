@@ -217,6 +217,19 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 .layer-item .layer-ops button{background:none;border:none;color:var(--muted);cursor:pointer;font-size:11px;padding:1px 3px;border-radius:3px;transition:all.12s;line-height:1}
 .layer-item .layer-ops button:hover{color:var(--text);background:var(--s3)}
 .layer-ops-del:hover{color:var(--red)!important}
+
+/* ── LAYER MIXER STRIP ── */
+.layer-mixer{background:var(--s2);border:1px solid var(--border);border-radius:8px;padding:9px 12px 8px;margin-bottom:6px}
+.layer-mixer-title{font-size:9px;font-weight:700;text-transform:uppercase;letter-spacing:.08em;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:5px}
+.layer-mixer-row{display:flex;align-items:center;gap:8px;margin-bottom:6px}
+.layer-mixer-row:last-child{margin-bottom:0}
+.layer-mixer-label{font-size:10.5px;color:var(--muted);width:48px;flex-shrink:0}
+.layer-mixer-val{font-size:10px;color:var(--accent);font-weight:700;min-width:32px;text-align:right;flex-shrink:0}
+.layer-blend-sel{flex:1;background:var(--s3);border:1px solid var(--border);border-radius:5px;color:var(--text);font-size:10.5px;padding:3px 5px;cursor:pointer;outline:none;appearance:none;-webkit-appearance:none}
+.layer-blend-sel:focus{border-color:var(--accent)}
+.layer-op-badge{font-size:8.5px;color:var(--muted);background:var(--s3);border-radius:3px;padding:0 4px;margin-left:2px;border:1px solid var(--border);font-weight:600;flex-shrink:0}
+.layer-op-badge.blend{color:var(--accent);background:#6366f110;border-color:#6366f130}
+
 #layer-add-row{display:flex;gap:4px;padding:6px 8px 8px}
 #layer-add-row select{flex:1;font-size:11px;padding:4px 6px;background:var(--s2);border:1px solid var(--border);border-radius:5px;color:var(--text);outline:none}
 #layer-add-row button{background:var(--accent);border:none;color:#fff;border-radius:5px;padding:4px 10px;font-size:11px;cursor:pointer;white-space:nowrap}
@@ -2112,10 +2125,13 @@ function renderLayerPanel(){
         default: tctx.fillStyle='#333'; tctx.fillRect(0,0,56,36)
       }
     }catch(e){tctx.fillStyle='#333';tctx.fillRect(0,0,56,36)}
+    const layerOp = Math.round((layer.opacity??1)*100)
+    const opBadge = layerOp < 100 ? `<span class="layer-op-badge">${layerOp}%</span>` : ''
+    const blendBadge = (layer.blendMode&&layer.blendMode!=='normal') ? `<span class="layer-op-badge blend">${layer.blendMode}</span>` : ''
     item.innerHTML=`
       <span class="layer-eye" data-lid="${layer.id}">${layer.visible?'👁':'○'}</span>
       <div class="layer-thumb"><canvas width="28" height="18" style="width:28px;height:18px"></canvas></div>
-      <span class="layer-name">${_genIcons()[layer.type]||''} ${layer.name}</span>
+      <span class="layer-name">${_genIcons()[layer.type]||''} ${layer.name}${opBadge}${blendBadge}</span>
       <div class="layer-ops">
         <button class="layer-ops-up" data-lid="${layer.id}" title="Move up">↑</button>
         <button class="layer-ops-dn" data-lid="${layer.id}" title="Move down">↓</button>
@@ -2975,7 +2991,7 @@ function buildControls(){
     if(layer){
       const saved = S.params[layer.type]
       S.params[layer.type] = layer.params
-      area.innerHTML = _buildControlsFor(layer.type)
+      area.innerHTML = _buildLayerMixer(layer) + _buildControlsFor(layer.type)
       S.params[layer.type] = saved
       _bindControls()
       return
@@ -2984,6 +3000,30 @@ function buildControls(){
   area.innerHTML = _buildControlsFor(S.gen)
   _bindControls()
   if(S.gen==='reference'&&S._refData) _renderRefVariations()
+}
+
+function _buildLayerMixer(layer) {
+  const BLENDS = [
+    ['normal','Normal'],['multiply','Multiply'],['screen','Screen'],['overlay','Overlay'],
+    ['darken','Darken'],['lighten','Lighten'],['color-dodge','Color Dodge'],['color-burn','Color Burn'],
+    ['hard-light','Hard Light'],['soft-light','Soft Light'],['difference','Difference'],
+    ['exclusion','Exclusion'],['hue','Hue'],['saturation','Saturation'],['color','Color'],['luminosity','Luminosity']
+  ]
+  const op = Math.round((layer.opacity ?? 1) * 100)
+  const bm = layer.blendMode || 'normal'
+  const opts = BLENDS.map(([v,l])=>`<option value="${v}"${bm===v?' selected':''}>${l}</option>`).join('')
+  return `<div class="layer-mixer">
+    <div class="layer-mixer-title">⊞ ${layer.name}</div>
+    <div class="layer-mixer-row">
+      <span class="layer-mixer-label">Opacity</span>
+      <input type="range" id="lm_opacity" min="0" max="100" step="1" value="${op}" style="flex:1;height:4px"/>
+      <span class="layer-mixer-val" id="lm_op_val">${op}%</span>
+    </div>
+    <div class="layer-mixer-row">
+      <span class="layer-mixer-label">Blend</span>
+      <select id="lm_blend" class="layer-blend-sel">${opts}</select>
+    </div>
+  </div>`
 }
 
 function _buildControlsFor(gen){
@@ -3567,6 +3607,30 @@ function _bindControls(){
       render(true)
     })
   })
+
+  // layer mixer — opacity + blend mode
+  const lmOp = document.getElementById('lm_opacity')
+  if(lmOp) {
+    lmOp.addEventListener('input', () => {
+      const layer = S.layers.find(l=>l.id===S._editingLayerId)
+      if(!layer) return
+      layer.opacity = lmOp.value / 100
+      const valEl = document.getElementById('lm_op_val')
+      if(valEl) valEl.textContent = lmOp.value + '%'
+      render(true)
+      renderLayerPanel()
+    })
+  }
+  const lmBlend = document.getElementById('lm_blend')
+  if(lmBlend) {
+    lmBlend.addEventListener('change', () => {
+      const layer = S.layers.find(l=>l.id===S._editingLayerId)
+      if(!layer) return
+      layer.blendMode = lmBlend.value
+      render(true)
+      renderLayerPanel()
+    })
+  }
 
   // mood buttons
   area.querySelectorAll('.mood-btn').forEach(el=>{
