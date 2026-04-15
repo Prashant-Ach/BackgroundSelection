@@ -106,6 +106,30 @@ select:focus,input[type=text]:focus,input[type=number]:focus{border-color:var(--
 #ref-drop:hover,#ref-drop.drag{border-color:var(--accent);background:#6366f108}
 #ref-drop .icon{font-size:28px;margin-bottom:6px}
 #ref-drop p{font-size:11.5px;color:var(--muted)}
+
+/* ── REFERENCE ENGINE v2 ── */
+.ref-var-grid{display:grid;grid-template-columns:1fr 1fr;gap:7px;padding:0 2px;margin-bottom:2px}
+.ref-var-card{border-radius:8px;overflow:hidden;cursor:pointer;border:1.5px solid var(--border);transition:all.15s;background:var(--s2)}
+.ref-var-card:hover{border-color:var(--accent);transform:translateY(-2px);box-shadow:0 6px 18px #6366f125}
+.ref-var-card.selected{border-color:var(--accent);box-shadow:0 0 0 2px #6366f140}
+.ref-var-img{display:block;width:100%;height:78px;object-fit:cover;background:var(--s3)}
+.ref-var-label{padding:4px 7px 1px;font-size:10px;font-weight:600;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.ref-var-gen{padding:0 7px 5px;font-size:9px;color:var(--accent);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;opacity:.8}
+.ref-analysis-header{display:flex;gap:9px;align-items:flex-start;margin-bottom:8px;padding:8px 10px;background:var(--s2);border-radius:8px;border:1px solid var(--border)}
+.ref-source-thumb{width:62px;height:42px;object-fit:cover;border-radius:5px;border:1px solid var(--border2);flex-shrink:0}
+.ref-analysis-info{flex:1;min-width:0}
+.ref-gen-badge{display:inline-flex;align-items:center;padding:2px 8px;border-radius:10px;font-size:10.5px;font-weight:700;background:#6366f120;color:var(--accent);border:1px solid #6366f130;margin-bottom:4px}
+.ref-feature-tags{display:flex;flex-wrap:wrap;gap:3px}
+.ref-feat-tag{font-size:9px;padding:1px 6px;border-radius:8px;background:var(--s3);color:var(--muted);border:1px solid var(--border)}
+.ref-pal-strip{display:flex;gap:4px;margin:6px 0 10px;padding:0 1px}
+.ref-pal-dot{flex:1;height:20px;border-radius:4px;cursor:pointer;transition:transform.1s;min-width:0}
+.ref-pal-dot:hover{transform:scaleY(1.25)}
+.ref-section-label{font-size:10px;font-weight:700;color:var(--muted);text-transform:uppercase;letter-spacing:.07em;margin:0 0 7px;padding:0 1px}
+.ref-result-panel{padding-bottom:4px}
+.ref-analyzing{padding:28px 16px;text-align:center;color:var(--muted)}
+.ref-spin{font-size:22px;display:block;animation:ref-spin .9s linear infinite;margin-bottom:10px}
+@keyframes ref-spin{to{transform:rotate(360deg)}}
+
 .palette-strip{display:flex;gap:4px;margin:8px 12px}
 .pal-color{flex:1;height:32px;border-radius:5px;cursor:pointer;border:2px solid transparent;transition:all.12s;position:relative}
 .pal-color:hover,.pal-color.used{border-color:#fff;transform:scaleY(1.08)}
@@ -377,6 +401,7 @@ S.activeLayerId = null
 S.nextLayerId   = 1
 S.layerMode     = false
 S._editingLayerId = null
+S._refData = null
 
 const canvas = document.getElementById('main-canvas')
 const ctx    = canvas.getContext('2d')
@@ -2384,64 +2409,88 @@ function shuffle(){
 // ═══════════════════════════════════════════════════════════
 // REFERENCE IMAGE ANALYSIS
 // ═══════════════════════════════════════════════════════════
-function analyzeImage(file){
+function analyzeImage(file) {
+  // Show spinner immediately in the upload zone results area
+  const resArea = document.getElementById('ref-results')
+  if(resArea) resArea.innerHTML = '<div class="ref-analyzing"><span class="ref-spin">⟳</span><div style="font-size:11px;margin-top:6px">Analyzing image…</div></div>'
+
   const reader = new FileReader()
   reader.onload = e => {
     const img = new Image()
     img.onload = () => {
-      const rc = document.getElementById('ref-canvas')
-      const SAMPLE = 150
-      rc.width=SAMPLE; rc.height=SAMPLE
-      const rx=rc.getContext('2d')
-      rx.drawImage(img,0,0,SAMPLE,SAMPLE)
-      const id = rx.getImageData(0,0,SAMPLE,SAMPLE)
+      try {
+        // 1. Downsample to 200px wide for analysis
+        const AW = 200, AH = Math.max(50, Math.round(200 * img.height / img.width))
+        const tmpC = document.createElement('canvas')
+        tmpC.width = AW; tmpC.height = AH
+        const tx = tmpC.getContext('2d')
+        tx.drawImage(img, 0, 0, AW, AH)
+        const imageData = tx.getImageData(0, 0, AW, AH)
 
-      // Color extraction — grid sampling + k-means clustering (simplified)
-      const colors = []
-      for(let y=0;y<SAMPLE;y+=8) for(let x=0;x<SAMPLE;x+=8){
-        const i=(y*SAMPLE+x)*4
-        colors.push([id.data[i],id.data[i+1],id.data[i+2]])
+        // 2. Full CV analysis
+        const feats = CVEngine.analyze(imageData, AW, AH)
+
+        // 3. Palette via k-means
+        const samples = []
+        for(let y = 0; y < AH; y += 5) for(let x = 0; x < AW; x += 5) {
+          const i = (y * AW + x) * 4
+          samples.push([imageData.data[i], imageData.data[i+1], imageData.data[i+2]])
+        }
+        const paletteRaw = _kMeans(samples, 7)
+        const palette = paletteRaw.map(([r,g,b]) => rgb2hex(Math.round(r), Math.round(g), Math.round(b)))
+
+        // 4. Classify → pick best generator
+        const ranking = _refClassify(feats)
+        const bestGen = ranking[0][0]
+
+        // 5. Extract params for best generator
+        const baseParams = _refParams(bestGen, feats, palette)
+
+        // 6. Build 6 variations
+        const variations = _refVariations(bestGen, baseParams, feats, palette)
+
+        // 7. Source thumbnail (80×52)
+        const thumbC = document.createElement('canvas')
+        thumbC.width = 80; thumbC.height = 52
+        thumbC.getContext('2d').drawImage(img, 0, 0, 80, 52)
+        const thumbUrl = thumbC.toDataURL('image/jpeg', 0.7)
+
+        // 8. Human-readable detected features
+        const detectedFeats = []
+        const {lines, texture, pattern, color, shapes, sym} = feats
+        if(lines.hL > 3)           detectedFeats.push('H-Lines')
+        if(lines.vL > 3)           detectedFeats.push('V-Lines')
+        if(lines.dL > 3)           detectedFeats.push('Diagonal')
+        if(lines.hReg)             detectedFeats.push('Regular')
+        if(pattern.rowPer > 0)    detectedFeats.push('Row Pattern')
+        if(pattern.colPer > 0)    detectedFeats.push('Col Pattern')
+        if(texture.entropy > 5.5) detectedFeats.push('Complex')
+        else if(texture.uniRatio > 0.65) detectedFeats.push('Smooth')
+        if(color.dark)             detectedFeats.push('Dark')
+        if(color.colorful)         detectedFeats.push('Colorful')
+        if(color.hSpr > 200)      detectedFeats.push('Wide Hues')
+        if(shapes.curveScore > 0.6) detectedFeats.push('Curved')
+        if(shapes.density > 0.3)  detectedFeats.push('Dense')
+        if(sym.lr > 0.72)         detectedFeats.push('Symmetric')
+
+        // 9. Store results
+        S._refData = { variations, palette, bestGen, features: feats, detectedFeats, thumbUrl }
+        S.palette = palette
+
+        // 10. Apply best params + render to main canvas
+        S.params[bestGen] = JSON.parse(JSON.stringify(baseParams))
+        S.gen = bestGen
+        render(true)
+
+        // 11. Switch back to reference panel to show results grid
+        S.gen = 'reference'
+        buildControls()
+        toast(`Detected: ${bestGen}`)
+      } catch(err) {
+        console.error('analyzeImage error:', err)
+        if(resArea) resArea.innerHTML = '<div style="padding:16px;color:var(--red);font-size:11px">⚠ Analysis failed. Try another image.</div>'
+        toast('Analysis failed')
       }
-      const palette = _kMeans(colors, 7)
-      S.palette = palette.map(([r,g,b])=>rgb2hex(Math.round(r),Math.round(g),Math.round(b)))
-
-      // Brightness / contrast analysis
-      let totalBright=0
-      colors.forEach(([r,g,b])=>{totalBright+=.299*r+.587*g+.114*b})
-      const avgBright = totalBright/colors.length/255
-
-      // Edge detection (simplified — variance in local area)
-      let edgeScore=0
-      for(let y=1;y<SAMPLE-1;y++) for(let x=1;x<SAMPLE-1;x++){
-        const gx=_getGray(id,SAMPLE,x+1,y)-_getGray(id,SAMPLE,x-1,y)
-        const gy=_getGray(id,SAMPLE,x,y+1)-_getGray(id,SAMPLE,x,y-1)
-        edgeScore+=Math.sqrt(gx*gx+gy*gy)
-      }
-      edgeScore /= (SAMPLE*SAMPLE)
-      const isGeometric = edgeScore > 40
-      const isSmooth    = edgeScore < 15
-
-      // Detect dominant hue variance
-      const hues = colors.map(([r,g,b])=>_rgb2hsl(r,g,b)[0])
-      const hueVar = _variance(hues)
-      const isColorful = hueVar > 2000
-
-      // Suggest generator
-      let suggestedGen='gradient', styleTag='Gradient'
-      if(isGeometric){ suggestedGen='geometric'; styleTag='Geometric' }
-      else if(!isSmooth&&isColorful){ suggestedGen='noise'; styleTag='Organic/Noise' }
-      else if(isSmooth&&!isColorful){ suggestedGen='material'; styleTag='Material' }
-      else if(isColorful){ suggestedGen='flowfield'; styleTag='Generative' }
-
-      // Apply palette to current generator
-      _applyPaletteToGen(suggestedGen, S.palette)
-      S.gen = suggestedGen
-      selectGen(suggestedGen)
-
-      // Render the ref panel UI
-      _renderRefPanel(S.palette, styleTag, avgBright)
-      render(true)
-      toast(`Analyzed! Detected: ${styleTag}`)
     }
     img.src = e.target.result
   }
@@ -2487,38 +2536,433 @@ function _applyPaletteToGen(gen, palette){
   else if(gen==='fluid'){S.params.fluid.colorA=palette[0];S.params.fluid.colorB=palette[1]||palette[0];S.params.fluid.colorC=palette[2]||palette[0];S.params.fluid.bg=palette[palette.length-1]}
 }
 
-function _renderRefPanel(palette, styleTag, brightness){
-  const area = document.getElementById('controls-area')
-  const strip = palette.map((c,i)=>`<div class="pal-color" style="background:${c}" data-c="${c}" title="${c}"><span class="hex-tip">${c}</span></div>`).join('')
-  const refHTML=`
-    <div class="rp-section">
-      <div class="rp-title">Detected Style</div>
-      <div style="display:flex;align-items:center;gap:8px;margin-bottom:8px">
-        <span class="style-tag">⊕ ${styleTag}</span>
-        <span style="font-size:11px;color:var(--muted)">Brightness: ${Math.round(brightness*100)}%</span>
-      </div>
-      <div class="rp-title">Extracted Palette</div>
-      <div class="palette-strip">${strip}</div>
-      <div style="margin-top:10px;display:flex;gap:6px">
-        <button class="btn sm btn-grad btn-full" id="ref-apply">✦ Apply to Generator</button>
-      </div>
-    </div>
-    ${_buildControlsFor(S.gen)}
-  `
-  area.innerHTML = refHTML
-  _bindControls()
-  area.querySelector('#ref-apply')?.addEventListener('click',()=>{
-    _applyPaletteToGen(S.gen,palette); buildControls(); render(true)
-  })
-  area.querySelectorAll('.pal-color').forEach(el=>{
-    el.addEventListener('click',()=>{
-      const c=el.dataset.c
-      const p=S.params[S.gen]
-      if(p.stops) p.stops[0]=c
-      else if(p.colorA!==undefined) p.colorA=c
-      buildControls(); render(true)
-    })
-  })
+// ═══════════════════════════════════════════════════════════
+// CV ENGINE — pure JS computer vision, no external deps
+// ═══════════════════════════════════════════════════════════
+const CVEngine = (() => {
+  function toGray(d, w, h) {
+    const g = new Float32Array(w * h)
+    for(let i = 0; i < w * h; i++) g[i] = .299*d[i*4] + .587*d[i*4+1] + .114*d[i*4+2]
+    return g
+  }
+  function gaussBlur(g, w, h) {
+    const K=[1,4,7,4,1, 4,16,26,16,4, 7,26,41,26,7, 4,16,26,16,4, 1,4,7,4,1], KS=159
+    const out = new Float32Array(w * h)
+    for(let y=2;y<h-2;y++) for(let x=2;x<w-2;x++){
+      let s=0, ki=0
+      for(let dy=-2;dy<=2;dy++) for(let dx=-2;dx<=2;dx++) s += K[ki++] * g[(y+dy)*w+(x+dx)]
+      out[y*w+x] = s/KS
+    }
+    return out
+  }
+  function sobel(g, w, h) {
+    const mag = new Float32Array(w*h), dir = new Float32Array(w*h)
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      const gx = -g[(y-1)*w+x-1]+g[(y-1)*w+x+1] - 2*g[y*w+x-1]+2*g[y*w+x+1] - g[(y+1)*w+x-1]+g[(y+1)*w+x+1]
+      const gy = -g[(y-1)*w+x-1]-2*g[(y-1)*w+x]-g[(y-1)*w+x+1] + g[(y+1)*w+x-1]+2*g[(y+1)*w+x]+g[(y+1)*w+x+1]
+      mag[y*w+x] = Math.sqrt(gx*gx+gy*gy)
+      dir[y*w+x] = Math.atan2(gy, gx)
+    }
+    return {mag, dir}
+  }
+  function canny(gray, w, h, lo=18, hi=55) {
+    const blurred = gaussBlur(gray, w, h)
+    const {mag, dir} = sobel(blurred, w, h)
+    const nms = new Float32Array(w*h)
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      const a = ((dir[y*w+x]*180/Math.PI)+180)%180, m = mag[y*w+x]
+      let n1, n2
+      if(a<22.5||a>=157.5)  {n1=mag[y*w+x-1];         n2=mag[y*w+x+1]}
+      else if(a<67.5)        {n1=mag[(y-1)*w+x+1];     n2=mag[(y+1)*w+x-1]}
+      else if(a<112.5)       {n1=mag[(y-1)*w+x];       n2=mag[(y+1)*w+x]}
+      else                   {n1=mag[(y-1)*w+x-1];     n2=mag[(y+1)*w+x+1]}
+      nms[y*w+x] = (m>=n1&&m>=n2) ? m : 0
+    }
+    const edges = new Uint8Array(w*h)
+    const strong = []
+    for(let i=0;i<w*h;i++){
+      if(nms[i]>=hi){edges[i]=2; strong.push(i)}
+      else if(nms[i]>=lo) edges[i]=1
+    }
+    const dx=[1,-1,0,0,1,-1,1,-1], dy=[0,0,1,-1,1,-1,-1,1]
+    const q = [...strong]
+    while(q.length){
+      const i=q.pop(), y=Math.floor(i/w), x=i%w
+      for(let d=0;d<8;d++){
+        const nx=x+dx[d], ny=y+dy[d]
+        if(nx<0||ny<0||nx>=w||ny>=h) continue
+        const ni=ny*w+nx
+        if(edges[ni]===1){edges[ni]=2; q.push(ni)}
+      }
+    }
+    const out = new Uint8Array(w*h)
+    for(let i=0;i<w*h;i++) out[i] = edges[i]===2 ? 255 : 0
+    return {edges:out, mag}
+  }
+  function hough(edges, w, h) {
+    const ABINS=36, RBINS=60, maxRho=Math.sqrt(w*w+h*h)
+    const acc = new Int32Array(ABINS*RBINS)
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){
+      if(!edges[y*w+x]) continue
+      for(let ai=0;ai<ABINS;ai++){
+        const theta = ai*Math.PI/ABINS
+        const rho = x*Math.cos(theta)+y*Math.sin(theta)
+        const ri = Math.floor((rho+maxRho)/(2*maxRho)*RBINS)
+        if(ri>=0&&ri<RBINS) acc[ai*RBINS+ri]++
+      }
+    }
+    const flat = Array.from(acc)
+    const thresh = Math.max(3, Math.max(...flat)*0.25)
+    let hL=0, vL=0, dL=0
+    const rhoHits = new Array(RBINS).fill(0)
+    for(let ai=0;ai<ABINS;ai++){
+      const deg = ai*180/ABINS
+      for(let ri=0;ri<RBINS;ri++){
+        if(acc[ai*RBINS+ri]>thresh){
+          if(deg<22.5||deg>=157.5){hL++; rhoHits[ri]++}
+          else if(deg>=67.5&&deg<112.5) vL++
+          else dL++
+        }
+      }
+    }
+    const rhoArr = rhoHits.map((v,i)=>v>0?i:-1).filter(i=>i>=0)
+    let hReg = 0
+    if(rhoArr.length>=3){
+      const gaps = rhoArr.slice(1).map((v,i)=>v-rhoArr[i])
+      const gMean = gaps.reduce((a,b)=>a+b,0)/gaps.length
+      const gVar = gaps.reduce((a,v)=>a+(v-gMean)**2,0)/gaps.length
+      hReg = gVar < gMean*0.5 ? 1 : 0
+    }
+    return {hL, vL, dL, hReg, total:hL+vL+dL}
+  }
+  function lbp(gray, w, h) {
+    const hist = new Float32Array(256)
+    let uni = 0, total = 0
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      const c = gray[y*w+x]
+      const nb = [
+        gray[(y-1)*w+x-1], gray[(y-1)*w+x], gray[(y-1)*w+x+1],
+        gray[y*w+x+1], gray[(y+1)*w+x+1], gray[(y+1)*w+x],
+        gray[(y+1)*w+x-1], gray[y*w+x-1]
+      ]
+      let code = 0
+      for(let n=0;n<8;n++) if(nb[n]>=c) code|=(1<<n)
+      hist[code]++; total++
+      let trans=0
+      for(let n=0;n<8;n++) if(((code>>n)&1)!==((code>>((n+1)%8))&1)) trans++
+      if(trans<=2) uni++
+    }
+    const sum = hist.reduce((a,b)=>a+b,0)||1
+    for(let i=0;i<256;i++) hist[i]/=sum
+    let entropy=0
+    hist.forEach(p=>{if(p>0) entropy-=p*Math.log2(p)})
+    let uniRatio=0
+    for(let i=0;i<256;i++){
+      let t=0
+      for(let n=0;n<8;n++) if(((i>>n)&1)!==((i>>((n+1)%8))&1)) t++
+      if(t<=2) uniRatio+=hist[i]
+    }
+    return {hist, entropy, uniformity:uni/(total||1), uniRatio}
+  }
+  function autocorr(gray, w, h) {
+    const rowS = new Float32Array(h), colS = new Float32Array(w)
+    for(let y=0;y<h;y++) for(let x=0;x<w;x++){rowS[y]+=gray[y*w+x]; colS[x]+=gray[y*w+x]}
+    function findPeriod(sig) {
+      const n=sig.length, mean=sig.reduce((a,b)=>a+b,0)/n
+      const cen=sig.map(v=>v-mean), self=cen.reduce((a,v)=>a+v*v,0)||1
+      let bestLag=0, bestCorr=0
+      for(let lag=4;lag<n/2;lag++){
+        let c=0; for(let i=0;i<n-lag;i++) c+=cen[i]*cen[i+lag]
+        c/=self; if(c>bestCorr){bestCorr=c; bestLag=lag}
+      }
+      return bestCorr>0.3 ? bestLag : 0
+    }
+    return {rowPer:findPeriod(rowS), colPer:findPeriod(colS)}
+  }
+  function symmetry(gray, w, h) {
+    let lrSAD=0, tbSAD=0, nLR=0
+    for(let y=0;y<h;y++) for(let x=0;x<Math.floor(w/2);x++){
+      lrSAD+=Math.abs(gray[y*w+x]-gray[y*w+(w-1-x)]); nLR++
+    }
+    for(let y=0;y<Math.floor(h/2);y++) for(let x=0;x<w;x++)
+      tbSAD+=Math.abs(gray[y*w+x]-gray[(h-1-y)*w+x])
+    return {lr:1-lrSAD/(nLR*255||1), tb:1-tbSAD/(Math.floor(h/2)*w*255||1)}
+  }
+  function colorFeats(d, w, h) {
+    let aL=0, aS=0, minL=1, maxL=0
+    const hues=[]
+    for(let i=0;i<w*h;i++){
+      const r=d[i*4]/255, g=d[i*4+1]/255, b=d[i*4+2]/255
+      const mx=Math.max(r,g,b), mn=Math.min(r,g,b), l=(mx+mn)/2
+      let s=0, hue=0
+      if(mx!==mn){
+        const dv=mx-mn; s=l>.5?dv/(2-mx-mn):dv/(mx+mn)
+        switch(mx){case r:hue=(g-b)/dv+(g<b?6:0);break;case g:hue=(b-r)/dv+2;break;case b:hue=(r-g)/dv+4;}
+        hue*=60
+      }
+      aL+=l; aS+=s; hues.push(hue)
+      if(l<minL)minL=l; if(l>maxL)maxL=l
+    }
+    const n=w*h||1; aL/=n; aS/=n
+    const hMin=Math.min(...hues), hMax=Math.max(...hues)
+    return {aL, aS, contrast:maxL-minL, hSpr:hMax-hMin, dark:aL<0.35, colorful:aS>0.22}
+  }
+  function edgeShapes(edges, w, h) {
+    let edgePx=0, hvCount=0, dCount=0
+    for(let y=1;y<h-1;y++) for(let x=1;x<w-1;x++){
+      if(!edges[y*w+x]) continue; edgePx++
+      const dH=Math.abs(edges[y*w+x-1]-edges[y*w+x+1])
+      const dV=Math.abs(edges[(y-1)*w+x]-edges[(y+1)*w+x])
+      const dD=Math.max(
+        Math.abs(edges[(y-1)*w+x-1]-edges[(y+1)*w+x+1]),
+        Math.abs(edges[(y-1)*w+x+1]-edges[(y+1)*w+x-1])
+      )
+      if(dH>=dV&&dH>=dD||dV>=dH&&dV>=dD) hvCount++
+      else dCount++
+    }
+    const tot=edgePx||1
+    const hvFrac=hvCount/tot, dFrac=dCount/tot
+    return {
+      density:edgePx/(w*h),
+      directionality:Math.max(hvFrac, dFrac),
+      curveScore:Math.max(0, 1-Math.abs(hvFrac-dFrac)*1.5)
+    }
+  }
+  return {
+    analyze(imageData, w, h) {
+      const d=imageData.data, gray=toGray(d,w,h)
+      const {edges,mag}=canny(gray,w,h)
+      const lines=hough(edges,w,h)
+      const texture=lbp(gray,w,h)
+      const pattern=autocorr(gray,w,h)
+      const sym=symmetry(gray,w,h)
+      const color=colorFeats(d,w,h)
+      const shapes=edgeShapes(edges,w,h)
+      return {edges,mag,gray,lines,texture,pattern,sym,color,shapes}
+    }
+  }
+})()
+
+// ── REFERENCE COLOUR HELPERS ──────────────────────────────
+function _refHex(r,g,b){return '#'+[r,g,b].map(v=>Math.max(0,Math.min(255,Math.round(v))).toString(16).padStart(2,'0')).join('')}
+function _refDarkenHex(h,f){const {r,g,b}=hex2rgb(h);return _refHex(r*f,g*f,b*f)}
+function _refLightenHex(h,f){const {r,g,b}=hex2rgb(h);return _refHex(r+(255-r)*f,g+(255-g)*f,b+(255-b)*f)}
+function _refCompHex(h){const {r,g,b}=hex2rgb(h);return _refHex(255-r,255-g,255-b)}
+
+// ── GENERATOR CLASSIFIER ─────────────────────────────────
+function _refClassify(f) {
+  const {lines,texture,pattern,sym,color,shapes}=f
+  const GEN=['gradient','geometric','noise','flowfield','material','topographic',
+             'neural','auroragen','particles','isometric','holographic','circuit','fluid']
+  const sc={}; GEN.forEach(g=>sc[g]=0)
+
+  // Edge density cues
+  if(shapes.density<0.08){sc.gradient+=3;sc.material+=2;sc.auroragen+=1}
+  if(shapes.density>0.08&&shapes.density<0.4){sc.topographic+=3;sc.geometric+=2;sc.circuit+=2}
+  if(shapes.density>0.4){sc.noise+=3;sc.fluid+=2}
+
+  // Line structure (Hough)
+  if(lines.hL>3&&lines.hReg){sc.topographic+=4;sc.circuit+=2}
+  if(lines.vL>3&&lines.hL>3&&lines.dL<lines.vL){sc.circuit+=3;sc.isometric+=2}
+  if(lines.dL>lines.hL&&lines.dL>lines.vL){sc.flowfield+=3;sc.fluid+=2}
+  if(lines.hL>4&&lines.vL>4&&lines.hReg){sc.geometric+=4}
+
+  // Texture (LBP)
+  if(texture.entropy>5.5){sc.noise+=4;sc.fluid+=2}
+  if(texture.entropy<3.5){sc.gradient+=3;sc.material+=2}
+  if(texture.uniRatio>0.6){sc.material+=3;sc.gradient+=2}
+  if(texture.uniRatio<0.3){sc.noise+=3;sc.topographic+=1}
+
+  // Periodicity
+  if(pattern.rowPer>0&&pattern.colPer>0){sc.geometric+=5;sc.isometric+=3}
+  if(pattern.rowPer>0&&!pattern.colPer){sc.topographic+=3;sc.circuit+=2}
+  if(!pattern.rowPer&&!pattern.colPer){sc.flowfield+=2;sc.fluid+=2;sc.auroragen+=2}
+
+  // Symmetry
+  if(sym.lr>0.75&&sym.tb>0.75){sc.geometric+=3;sc.isometric+=2}
+
+  // Color cues
+  if(color.dark){sc.gradient+=1;sc.auroragen+=2;sc.neural+=2}
+  if(color.colorful){sc.flowfield+=2;sc.auroragen+=2;sc.particles+=2}
+  if(color.hSpr>200){sc.holographic+=5;sc.auroragen+=3}
+  if(!color.colorful&&color.aS<0.1){sc.material+=4}
+
+  // Edge curvature
+  if(shapes.curveScore>0.6){sc.fluid+=3;sc.flowfield+=3;sc.auroragen+=2}
+  if(shapes.curveScore<0.35&&shapes.directionality>0.4){sc.circuit+=3;sc.geometric+=2;sc.isometric+=2}
+
+  // Sparse + textured + non-periodic → particle-like
+  if(shapes.density>0.05&&shapes.density<0.2&&texture.entropy>4&&!pattern.rowPer){sc.particles+=4;sc.neural+=3}
+
+  return Object.entries(sc).sort((a,b)=>b[1]-a[1])
+}
+
+// ── PARAMETER EXTRACTOR ───────────────────────────────────
+function _refParams(gen, f, pal) {
+  const {lines,texture,pattern,color,shapes}=f
+  const p = JSON.parse(JSON.stringify(S.params[gen]))
+  const pal0=pal[0]||'#6366f1', pal1=pal[1]||pal[0]||'#ec4899', pal2=pal[2]||pal[0]||'#06b6d4'
+  const bg = color.dark ? (pal[pal.length-1]||'#050510') : (pal[pal.length-1]||'#f8fafc')
+  const density = Math.min(1, Math.max(0.1, shapes.density*2.5))
+  // Universal colour overlay
+  if(p.stops&&pal.length>0){const n=Math.max(2,p.stops.length);p.stops=Array.from({length:n},(_,i)=>pal[i%pal.length]||pal0)}
+  if(p.colorA!==undefined)   p.colorA=pal0
+  if(p.colorB!==undefined)   p.colorB=pal1
+  if(p.colorC!==undefined)   p.colorC=pal2
+  if(p.colorD!==undefined)   p.colorD=pal[3]||pal2
+  if(p.bg!==undefined)       p.bg=bg
+  if(p.colorBg!==undefined)  p.colorBg=bg
+  if(p.nodeColor!==undefined) p.nodeColor=pal0
+  if(p.edgeColor!==undefined) p.edgeColor=pal1
+  if(p.traceColor!==undefined)p.traceColor=pal0
+  if(p.glowColor!==undefined) p.glowColor=pal1
+  if(p.colorTop!==undefined)  p.colorTop=pal0
+  if(p.colorLeft!==undefined) p.colorLeft=pal1
+  if(p.colorRight!==undefined)p.colorRight=pal2
+  if(p.tint!==undefined)      p.tint=pal0
+  if(p.color!==undefined&&typeof p.color==='string'&&p.color.startsWith('#')) p.color=pal0
+  // Structural params based on CV features
+  switch(gen){
+    case 'gradient':
+      p.type=color.hSpr>150?'mesh':(lines.dL>5?'aurora':(color.dark?'radial':'linear'))
+      p.angle=lines.dL>lines.hL?135:160
+      p.grain=texture.entropy>4?.025:.012
+      if(p.vignette!==undefined) p.vignette=color.dark?.6:.3
+      break
+    case 'geometric':
+      p.size=Math.max(20,pattern.rowPer||36)
+      p.gap=Math.max(1,Math.round(p.size*.08))
+      p.lineW=shapes.density>.25?2:1.2
+      p.opacity=texture.uniRatio>.5?.65:.35
+      break
+    case 'noise':
+      p.scale=Math.max(2,Math.min(8,3+texture.entropy*.5))
+      p.octaves=Math.round(3+texture.entropy/2)
+      p.turbulence=Math.min(1.5,.3+texture.entropy/6)
+      break
+    case 'flowfield':
+      p.count=Math.round(1200+density*2000)
+      p.stepLen=Math.max(1,3-shapes.density*2)
+      p.lineW=Math.max(.4,1.2-shapes.density)
+      break
+    case 'topographic':
+      p.levels=Math.round(8+shapes.density*18)
+      p.scale=Math.max(2,texture.entropy*.7)
+      p.filled=texture.uniRatio<.4
+      break
+    case 'neural':
+      p.nodeCount=Math.round(40+density*120)
+      p.connectRadius=Math.min(.4,.1+shapes.density)
+      break
+    case 'auroragen':
+      p.bands=Math.round(3+texture.entropy*.5)
+      p.intensity=Math.min(1,.5+color.aS)
+      break
+    case 'particles':
+      p.count=Math.round(300+density*700)
+      break
+    case 'isometric':
+      p.size=Math.max(24,pattern.rowPer||48)
+      break
+    case 'circuit':
+      p.density=Math.min(8,Math.round(3+density*5))
+      break
+    case 'fluid':
+      p.viscosity=Math.max(.2,.8-texture.entropy*.05)
+      p.turbulence=Math.min(1.5,.3+texture.entropy*.15)
+      break
+  }
+  return p
+}
+
+// ── DENSIFY HELPER ────────────────────────────────────────
+function _refDensify(p) {
+  const o={...p}
+  if(o.count!==undefined)     o.count=Math.min(6000,Math.round(o.count*1.7))
+  if(o.density!==undefined)   o.density=Math.min(8,Math.round((o.density||4)*1.5))
+  if(o.levels!==undefined)    o.levels=Math.min(40,Math.round(o.levels*1.6))
+  if(o.nodeCount!==undefined) o.nodeCount=Math.min(250,Math.round(o.nodeCount*1.5))
+  if(o.bands!==undefined)     o.bands=Math.min(20,Math.round(o.bands*1.5))
+  if(o.size!==undefined)      o.size=Math.max(8,Math.round(o.size*.65))
+  return o
+}
+
+// ── VARIATION GENERATOR ───────────────────────────────────
+function _refVariations(bestGen, baseParams, feats, pal) {
+  const dk=pal.map(c=>_refDarkenHex(c,.32))
+  const lt=pal.map(c=>_refLightenHex(c,.55))
+  const cp=pal.map(c=>_refCompHex(c))
+  function applyColors(params, colorPal) {
+    const q=JSON.parse(JSON.stringify(params))
+    if(q.stops)                q.stops=colorPal.slice(0,Math.max(2,q.stops.length))
+    if(q.colorA!==undefined)   q.colorA=colorPal[0]||q.colorA
+    if(q.colorB!==undefined)   q.colorB=colorPal[1]||q.colorB
+    if(q.colorC!==undefined)   q.colorC=colorPal[2]||q.colorC
+    if(q.colorD!==undefined)   q.colorD=colorPal[3]||q.colorD
+    if(q.bg!==undefined)       q.bg=colorPal[colorPal.length-1]||q.bg
+    if(q.colorBg!==undefined)  q.colorBg=colorPal[colorPal.length-1]||q.colorBg
+    if(q.nodeColor!==undefined) q.nodeColor=colorPal[0]||q.nodeColor
+    if(q.edgeColor!==undefined) q.edgeColor=colorPal[1]||q.edgeColor
+    if(q.traceColor!==undefined)q.traceColor=colorPal[0]||q.traceColor
+    if(q.glowColor!==undefined) q.glowColor=colorPal[1]||q.glowColor
+    if(q.colorTop!==undefined)  q.colorTop=colorPal[0]||q.colorTop
+    if(q.colorLeft!==undefined) q.colorLeft=colorPal[1]||q.colorLeft
+    if(q.colorRight!==undefined)q.colorRight=colorPal[2]||q.colorRight
+    if(q.tint!==undefined)      q.tint=colorPal[0]||q.tint
+    if(q.color!==undefined&&typeof q.color==='string'&&q.color.startsWith('#')) q.color=colorPal[0]||q.color
+    return q
+  }
+  const relGen={
+    gradient:'auroragen',geometric:'isometric',noise:'fluid',flowfield:'topographic',
+    material:'gradient',topographic:'flowfield',neural:'particles',auroragen:'holographic',
+    particles:'neural',isometric:'geometric',holographic:'auroragen',circuit:'geometric',fluid:'noise'
+  }
+  const absGen=relGen[bestGen]||bestGen
+  const absBase=_refParams(absGen,feats,pal)
+  return [
+    {label:'Closest Match', icon:'🎯', gen:bestGen, params:JSON.parse(JSON.stringify(baseParams))},
+    {label:'Dark Version',  icon:'🌑', gen:bestGen, params:applyColors(baseParams,dk)},
+    {label:'Light Version', icon:'☀',  gen:bestGen, params:applyColors(baseParams,lt)},
+    {label:'More Abstract', icon:'⊛',  gen:absGen,  params:absBase},
+    {label:'High Density',  icon:'⣿', gen:bestGen, params:_refDensify(JSON.parse(JSON.stringify(baseParams)))},
+    {label:'Stylized',      icon:'◈',  gen:bestGen, params:applyColors(baseParams,cp)},
+  ]
+}
+
+// ── VARIATION THUMBNAIL RENDERER ──────────────────────────
+function _renderRefVariations() {
+  if(!S._refData) return
+  const {variations}=S._refData
+  const TW=160, TH=104
+  const GEN_FN={
+    gradient:genGradient, geometric:genGeometric, noise:genNoise,
+    flowfield:genFlowField, material:genMaterial, topographic:genTopographic,
+    neural:genNeural, auroragen:genAuroraBg, particles:genParticles,
+    isometric:genIsometric, holographic:genHolographic, circuit:genCircuit, fluid:genFluid
+  }
+  let i=0
+  function renderNext() {
+    if(i>=variations.length) return
+    const v=variations[i], idx=i++
+    const imgEl=document.querySelector(`.ref-var-img[data-vi="${idx}"]`)
+    if(imgEl){
+      try {
+        const tc=document.createElement('canvas'); tc.width=TW; tc.height=TH
+        const tx=tc.getContext('2d')
+        const fn=GEN_FN[v.gen]; if(fn) fn(tx,TW,TH,v.params)
+        imgEl.src=tc.toDataURL('image/jpeg',.82)
+      } catch(err) {
+        console.warn('ref thumb err:',idx,err)
+        const tc=document.createElement('canvas'); tc.width=TW; tc.height=TH
+        const tx=tc.getContext('2d')
+        tx.fillStyle=v.params.colorA||v.params.bg||(v.params.stops&&v.params.stops[0])||'#333'
+        tx.fillRect(0,0,TW,TH)
+        imgEl.src=tc.toDataURL()
+      }
+    }
+    setTimeout(renderNext,0)
+  }
+  renderNext()
 }
 
 // ═══════════════════════════════════════════════════════════
@@ -2539,6 +2983,7 @@ function buildControls(){
   }
   area.innerHTML = _buildControlsFor(S.gen)
   _bindControls()
+  if(S.gen==='reference'&&S._refData) _renderRefVariations()
 }
 
 function _buildControlsFor(gen){
@@ -2964,14 +3409,37 @@ function _ctrlFluid(){
 }
 
 function _ctrlReference(){
+  if(S._refData){
+    const {palette,bestGen,detectedFeats,thumbUrl,variations}=S._refData
+    const featTags=detectedFeats.slice(0,6).map(f=>`<span class="ref-feat-tag">${f}</span>`).join('')
+    const palStrip=palette.slice(0,7).map(c=>`<div class="ref-pal-dot" style="background:${c}" title="${c}" data-c="${c}"></div>`).join('')
+    const varCards=variations.map((v,i)=>`<div class="ref-var-card" data-vi="${i}">
+        <img class="ref-var-img" data-vi="${i}" src="" alt="${v.label}"/>
+        <div class="ref-var-label">${v.icon} ${v.label}</div>
+        <div class="ref-var-gen">${v.gen}</div>
+      </div>`).join('')
+    return `<div class="rp-section ref-result-panel">
+      <div class="ref-analysis-header">
+        <img class="ref-source-thumb" src="${thumbUrl}" alt="Source"/>
+        <div class="ref-analysis-info">
+          <div class="ref-gen-badge">⊕ ${bestGen}</div>
+          <div class="ref-feature-tags">${featTags}</div>
+        </div>
+      </div>
+      <div class="ref-pal-strip">${palStrip}</div>
+      <div class="ref-section-label">Variations — click to apply</div>
+      <div class="ref-var-grid">${varCards}</div>
+      <button class="btn sm btn-full" id="ref-new" style="margin-top:8px">↑ Upload New Image</button>
+    </div>`
+  }
   return `<div class="rp-section">
     <div id="ref-drop">
       <div class="icon">🖼</div>
       <p><strong>Drop an image here</strong><br/>or click to upload</p>
-      <p style="font-size:10px;margin-top:4px;color:var(--muted2)">Analyzes color palette & pattern style</p>
+      <p style="font-size:10px;margin-top:4px;color:var(--muted2)">CV analysis · 6 style variations</p>
       <input type="file" id="ref-file" accept="image/*" style="position:absolute;inset:0;opacity:0;cursor:pointer"/>
     </div>
-    <div id="ref-results" style="padding:0 4px"></div>
+    <div id="ref-results"></div>
   </div>`
 }
 
@@ -3113,7 +3581,7 @@ function _bindControls(){
     if(S.params.gradient.stops.length>2){ S.params.gradient.stops.pop(); buildControls(); render(true) }
   })
 
-  // reference file
+  // reference file + drag/drop
   document.getElementById('ref-file')?.addEventListener('change',e=>{
     if(e.target.files[0]) analyzeImage(e.target.files[0])
   })
@@ -3126,6 +3594,30 @@ function _bindControls(){
       if(e.dataTransfer.files[0]) analyzeImage(e.dataTransfer.files[0])
     })
   }
+  // ref v2: "upload new" button
+  document.getElementById('ref-new')?.addEventListener('click',()=>{S._refData=null;buildControls()})
+  // ref v2: variation cards
+  document.querySelectorAll('.ref-var-card[data-vi]').forEach(card=>{
+    card.addEventListener('click',()=>{
+      document.querySelectorAll('.ref-var-card').forEach(c=>c.classList.remove('selected'))
+      card.classList.add('selected')
+      const i=+card.dataset.vi, v=S._refData?.variations[i]
+      if(!v) return
+      S.params[v.gen]=JSON.parse(JSON.stringify(v.params))
+      selectGen(v.gen); render(true)
+      toast(`Applied: ${v.label}`)
+    })
+  })
+  // ref v2: palette dots
+  document.querySelectorAll('.ref-pal-dot[data-c]').forEach(dot=>{
+    dot.addEventListener('click',()=>{
+      const c=dot.dataset.c, p=S.params[S._refData?.bestGen||S.gen]
+      if(!p) return
+      if(p.colorA!==undefined) p.colorA=c
+      else if(p.stops) p.stops[0]=c
+      render(true)
+    })
+  })
 
   // inject preset thumbs if presets view
   const scripts=area.querySelectorAll('script')
