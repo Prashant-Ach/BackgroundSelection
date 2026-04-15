@@ -415,6 +415,7 @@ S.nextLayerId   = 1
 S.layerMode     = false
 S._editingLayerId = null
 S._refData = null
+let _layerBgSkip = false   // when true, generators skip their solid BG fill so layers composite transparently
 
 const canvas = document.getElementById('main-canvas')
 const ctx    = canvas.getContext('2d')
@@ -581,7 +582,7 @@ function gradientToCSS(p) {
 // ─── GEOMETRIC ──────────────────────────────────────────────
 function genGeometric(c, w, h, p) {
   const {type,size,gap,rotation,lineW,colorA,colorB,filled} = p
-  c.fillStyle = colorB; c.fillRect(0,0,w,h)
+  c.fillStyle = colorB; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   c.strokeStyle = colorA; c.fillStyle = colorA
   c.lineWidth = lineW
 
@@ -875,7 +876,7 @@ function genNoise(c, w, h, p) {
 // ─── FLOW FIELDS ────────────────────────────────────────────
 function genFlowField(c, w, h, p) {
   const {type,count,stepLen,lineW,speed,colorA,colorB,bg,opacity,seed,colorMode,trailLen,poles} = p
-  c.fillStyle=bg; c.fillRect(0,0,w,h)
+  c.fillStyle=bg; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   const sx=getSimplex()
   const ca=hex2rgb(colorA), cb=hex2rgb(colorB)
   c.lineWidth=lineW||1
@@ -1180,7 +1181,7 @@ function genTopographic(c, w, h, p) {
 function genNeural(c, w, h, p) {
   const {nodeCount, nodeSize, connectRadius, edgeOpacity, nodeColor, edgeColor, bg, opacity, seed} = p
   c.clearRect(0,0,w,h)
-  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  c.fillStyle = bg; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   const nc = hex2rgb(nodeColor), ec = hex2rgb(edgeColor)
   const nodes = []
   for(let i = 0; i < nodeCount; i++) {
@@ -1230,7 +1231,7 @@ function genNeural(c, w, h, p) {
 function genAuroraBg(c, w, h, p) {
   const {colorA, colorB, colorC, colorD, bg, intensity, waveAmp, bands, opacity, seed, style, blobSize} = p
   c.clearRect(0,0,w,h)
-  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  c.fillStyle = bg; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   const sx = getSimplex()
   const st = style || 'ios'
   const blobColors = [colorA, colorB, colorC, colorD||colorA]
@@ -1325,7 +1326,7 @@ function genAuroraBg(c, w, h, p) {
 function genParticles(c, w, h, p) {
   const {count, minSize, maxSize, colorA, colorB, bg, glow, opacity, seed} = p
   c.clearRect(0,0,w,h)
-  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  c.fillStyle = bg; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   const ca = hex2rgb(colorA), cb = hex2rgb(colorB)
 
   c.save(); c.globalAlpha = opacity
@@ -1378,7 +1379,7 @@ function genIsometric(c, w, h, p) {
   // --- Background ---
   c.save()
   c.fillStyle = bg
-  c.fillRect(0, 0, w, h)
+  if(!_layerBgSkip) c.fillRect(0, 0, w, h)
 
   // --- Tile dimensions ---
   // TW = full tile width, TH = full tile height (TW/2 = standard iso ratio)
@@ -1679,7 +1680,7 @@ function _hslToRgb(h, s, l) {
 function genCircuit(c, w, h, p) {
   const {traceColor, bg, lineW, density, glowColor, glowIntensity, seed, opacity} = p
   c.clearRect(0,0,w,h)
-  c.fillStyle = bg; c.fillRect(0,0,w,h)
+  c.fillStyle = bg; if(!_layerBgSkip) c.fillRect(0,0,w,h)
   const tc = hex2rgb(traceColor), gc = hex2rgb(glowColor)
   const GRID = Math.max(16, Math.round(48 / density * 2.5))
   const cols = Math.ceil(w/GRID) + 2, rows = Math.ceil(h/GRID) + 2
@@ -2155,8 +2156,11 @@ function renderLayerStack(){
   const ctx=canvas.getContext('2d')
   ctx.clearRect(0,0,S.w,S.h)
   ctx.fillStyle='#000'; ctx.fillRect(0,0,S.w,S.h)
+  let _lsFirstVis = true  // first visible layer keeps its BG fill; all above are transparent
   for(const layer of S.layers){
     if(!layer.visible) continue
+    _layerBgSkip = !_lsFirstVis   // skip solid BG for every layer above the bottom
+    _lsFirstVis = false
     const tmp=document.createElement('canvas'); tmp.width=S.w; tmp.height=S.h
     const tc=tmp.getContext('2d')
     const p=layer.params
@@ -2177,6 +2181,7 @@ function renderLayerStack(){
         case 'fluid':      genFluid(tc,S.w,S.h,p); break
       }
     }catch(e){}
+    _layerBgSkip = false   // always reset after each layer
     ctx.save()
     ctx.globalAlpha=layer.opacity??1
     ctx.globalCompositeOperation=layer.blendMode||'normal'
